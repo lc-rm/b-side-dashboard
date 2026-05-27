@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ビイサイドプランニング様｜実績分析ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+:root {
+  --mint-50: #f0fbf7;
+  --mint-100: #d6f5e8;
+  --mint-200: #a8ebd0;
+  --mint-300: #6fdcb1;
+  --mint-400: #3cc790;
+  --mint-500: #1eaf75;
+  --mint-600: #169061;
+  --mint-700: #117350;
+  --mint-dark: #0d5a3f;
+
+  --bg: #ffffff;
+  --bg-soft: #fafbfb;
+  --bg-card: #ffffff;
+  --bg-tint: #f5faf7;
+  --border: #e6ecea;
+  --border-strong: #d0d9d4;
+  --text: #1a2421;
+  --text-dim: #5a6862;
+  --text-faint: #8a9690;
+
+  --shadow-sm: 0 1px 2px rgba(13, 90, 63, 0.04);
+  --shadow-md: 0 4px 16px rgba(13, 90, 63, 0.06);
+
+  --accent: var(--mint-500);
+  --accent-soft: var(--mint-100);
+  --info: #4a90c4;
+  --warn: #d49a2a;
+  --purple: #9479c9;
+  --pink: #c97fa8;
+  --danger: #d96666;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans JP', -apple-system, sans-serif;
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(at 100% 0%, rgba(110, 220, 177, 0.08) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(110, 220, 177, 0.05) 0px, transparent 50%);
+}
+.app { max-width: 1400px; margin: 0 auto; padding: 32px 28px; }
+
+/* ===== Header ===== */
+.header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid var(--mint-100); }
+.header-left h1 { font-family: 'Manrope', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
+.header-left h1::before { content: ''; display: inline-block; width: 4px; height: 24px; background: var(--mint-500); margin-right: 12px; vertical-align: -2px; border-radius: 2px; }
+.header-left .sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; padding-left: 16px; }
+.header-left .sub span { color: var(--mint-600); font-weight: 600; }
+.header-right { text-align: right; }
+.header-right .label { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+.header-right .value { font-family: 'Manrope', sans-serif; font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+/* ===== Upload Zone ===== */
+.upload-zone {
+  background: var(--bg-card);
+  border: 1.5px dashed var(--mint-300);
+  border-radius: 14px;
+  padding: 18px 24px;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+.upload-zone.dragover { border-color: var(--mint-500); background: var(--mint-50); }
+.upload-zone .icon { font-size: 22px; color: var(--mint-500); }
+.upload-zone .text { flex: 1; min-width: 200px; }
+.upload-zone .text .label { font-weight: 600; font-size: 13px; color: var(--text); }
+.upload-zone .text .hint { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.upload-zone .btn-primary {
+  background: var(--mint-500); color: #fff; border: 0; padding: 9px 18px;
+  border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 13px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.upload-zone .btn-primary:hover { background: var(--mint-600); }
+.upload-zone .btn-ghost {
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border-strong);
+  padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;
+  font-family: inherit;
+}
+.upload-zone .btn-ghost:hover { color: var(--mint-600); border-color: var(--mint-300); background: var(--mint-50); }
+.upload-status { font-size: 11px; color: var(--text-dim); }
+.upload-status .ok { color: var(--mint-500); font-weight: 600; }
+
+/* ===== Filter Bar ===== */
+.filter-bar {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 18px; margin-bottom: 24px;
+  display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
+  box-shadow: var(--shadow-sm);
+}
+.filter-group { display: flex; align-items: center; gap: 8px; }
+.filter-group > label { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+.filter-group select, .filter-group input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border-strong);
+  padding: 7px 12px; border-radius: 7px; font-family: inherit; font-size: 12px;
+}
+.filter-group select:focus { outline: none; border-color: var(--mint-400); box-shadow: 0 0 0 3px var(--mint-100); }
+.filter-group .period-sep { color: var(--text-faint); font-size: 11px; margin: 0 2px; }
+.chip-group { display: flex; gap: 4px; flex-wrap: wrap; }
+.chip {
+  background: var(--bg); border: 1px solid var(--border-strong); color: var(--text-dim);
+  padding: 5px 12px; border-radius: 999px; font-size: 11px; cursor: pointer;
+  font-weight: 500; font-family: inherit; transition: all 0.15s;
+}
+.chip:hover { color: var(--mint-600); border-color: var(--mint-300); }
+.chip.active { background: var(--mint-500); color: #fff; border-color: var(--mint-500); }
+
+/* ===== KPI Grid ===== */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.kpi {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px; position: relative; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.kpi::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--accent-color, var(--mint-500));
+}
+.kpi.--apply { --accent-color: var(--info); }
+.kpi.--contact { --accent-color: var(--purple); }
+.kpi.--meeting { --accent-color: var(--pink); }
+.kpi.--interview { --accent-color: var(--warn); }
+.kpi.--hire { --accent-color: var(--mint-500); }
+.kpi.--revenue { --accent-color: var(--mint-600); }
+.kpi .label { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+.kpi .value { font-family: 'Manrope', sans-serif; font-size: 30px; font-weight: 700; margin-top: 6px; letter-spacing: -1px; color: var(--text); }
+.kpi .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; margin-left: 3px; }
+.kpi .rate { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.kpi .rate b { color: var(--accent-color, var(--mint-500)); font-family: 'Manrope', sans-serif; font-weight: 700; }
+
+/* ===== Section ===== */
+.section { margin-bottom: 28px; }
+.section-title { font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 12px; padding-left: 4px; }
+.section-title .marker { display: inline-block; width: 6px; height: 6px; background: var(--mint-500); border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+.section-title .ja { color: var(--text); font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 600; margin-left: 8px; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; box-shadow: var(--shadow-sm); }
+
+/* ===== Funnel ===== */
+.funnel { display: flex; flex-direction: column; gap: 10px; }
+.funnel-row { display: flex; align-items: center; gap: 16px; }
+.funnel-label { width: 110px; font-size: 12px; color: var(--text); font-weight: 600; }
+.funnel-bar-wrap { flex: 1; height: 38px; background: var(--bg-tint); border-radius: 8px; position: relative; overflow: hidden; border: 1px solid var(--border); }
+.funnel-bar { height: 100%; background: linear-gradient(90deg, var(--bar-color, var(--mint-400)) 0%, color-mix(in srgb, var(--bar-color, var(--mint-400)) 65%, white) 100%); border-radius: 7px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+.funnel-value { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 14px; color: var(--text); }
+.funnel-conv { width: 100px; font-size: 11px; color: var(--text-faint); text-align: right; }
+.funnel-conv b { color: var(--mint-600); font-family: 'Manrope', sans-serif; font-weight: 700; }
+
+/* ===== Grids ===== */
+.split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.triple-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) {
+  .split-grid, .triple-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== Tables ===== */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th { text-align: left; padding: 10px 12px; color: var(--text-faint); font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: 0.8px; border-bottom: 2px solid var(--mint-100); }
+.tbl td { padding: 11px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl tr:hover td { background: var(--mint-50); }
+.tbl td.num { font-family: 'Manrope', sans-serif; font-weight: 600; text-align: right; }
+.tbl td.bar-cell { width: 35%; }
+.tbl .mini-bar { height: 6px; background: var(--bg-tint); border-radius: 3px; overflow: hidden; }
+.tbl .mini-bar > div { height: 100%; background: var(--mint-400); border-radius: 3px; }
+.media-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+.tbl .rate-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; font-family: 'Manrope', sans-serif; background: var(--mint-100); color: var(--mint-700); }
+
+/* ===== Chart container ===== */
+.chart-box { position: relative; height: 280px; }
+.chart-box.tall { height: 340px; }
+.chart-box.short { height: 220px; }
+
+/* ===== Donut pair (応募時 vs 採用時) ===== */
+.donut-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+.donut-col { display: flex; flex-direction: column; }
+.donut-label { text-align: center; font-size: 11px; font-weight: 700; color: var(--mint-700); background: var(--mint-50); padding: 5px 10px; border-radius: 999px; margin: 0 auto 8px; display: inline-block; align-self: center; letter-spacing: 0.5px; }
+@media (max-width: 700px) {
+  .donut-pair { grid-template-columns: 1fr; gap: 14px; }
+}
+
+/* ===== Tabs ===== */
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.tab { background: transparent; border: 0; color: var(--text-dim); padding: 10px 18px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--mint-600); }
+.tab.active { color: var(--mint-600); border-bottom-color: var(--mint-500); }
+
+/* ===== Empty state ===== */
+.empty {
+  padding: 40px 20px; text-align: center; color: var(--text-faint);
+  font-size: 12px;
+}
+.empty .icon { font-size: 28px; color: var(--mint-200); margin-bottom: 8px; display: block; }
+.empty .hint { font-size: 11px; margin-top: 6px; color: var(--text-faint); }
+
+/* ===== Flow (応募職種 vs 希望職種) ===== */
+.flow-wrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.flow-row {
+  display: grid; grid-template-columns: 1fr auto 1fr auto 1fr 60px;
+  gap: 12px; align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-tint);
+  font-size: 12px;
+}
+.flow-row.diff { background: linear-gradient(90deg, #fff8eb 0%, var(--bg-tint) 100%); }
+.flow-cell { font-weight: 500; color: var(--text); }
+.flow-arrow { color: var(--mint-400); font-weight: 700; font-size: 14px; }
+.flow-count { font-family: 'Manrope', sans-serif; font-weight: 700; color: var(--mint-600); text-align: right; font-size: 13px; }
+.flow-row.diff .flow-arrow { color: var(--warn); }
+.flow-row.diff .flow-count { color: var(--warn); }
+
+/* ===== Hired analysis tab ===== */
+.hired-summary { margin-bottom: 18px; }
+.hired-headline { padding: 14px 18px; background: linear-gradient(135deg, var(--mint-50) 0%, var(--bg-tint) 100%); border-radius: 10px; border-left: 3px solid var(--mint-500); }
+.hired-headline .big { font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 28px; color: var(--mint-700); letter-spacing: -1px; }
+.hired-headline .unit { font-size: 13px; color: var(--text-dim); margin-left: 8px; font-weight: 600; }
+.hired-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+@media (max-width: 900px) { .hired-grid { grid-template-columns: 1fr; } }
+.hired-card { background: var(--bg-tint); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.hired-card-title { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin-bottom: 10px; }
+.hired-bar-row { display: grid; grid-template-columns: 90px 1fr 80px; gap: 10px; align-items: center; padding: 5px 0; font-size: 12px; }
+.hired-bar-label { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hired-bar-track { height: 8px; background: rgba(0,0,0,0.04); border-radius: 4px; overflow: hidden; }
+.hired-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+.hired-bar-num { font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 13px; color: var(--text); text-align: right; }
+.hired-bar-num .pct { color: var(--text-faint); font-size: 10px; font-weight: 500; margin-left: 2px; }
+.hired-flow-block { margin-top: 22px; }
+.hired-section-title { font-size: 12px; color: var(--text); font-weight: 700; margin-bottom: 10px; padding-left: 4px; }
+
+/* ===== Footer ===== */
+.footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-faint); text-align: center; }
+.footer span { color: var(--text-dim); font-weight: 600; }
+
+input[type=file] { display: none; }
+
+/* ===== Mobile ===== */
+@media (max-width: 700px) {
+  .app { padding: 18px 14px; }
+  .header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .header-right { text-align: left; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .funnel-label { width: 80px; font-size: 11px; }
+  .funnel-conv { width: 75px; font-size: 10px; }
+  .flow-row { grid-template-columns: 1fr auto 1fr; font-size: 11px; }
+  .flow-row .flow-cell:nth-child(5), .flow-row .flow-arrow:nth-child(4), .flow-row .flow-count { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div class="header-left">
+      <h1>実績分析ダッシュボード</h1>
+      <div class="sub">ビイサイドプランニング様 <span>／介護事業部</span></div>
+    </div>
+    <div class="header-right">
+      <div class="label">DATA RANGE</div>
+      <div class="value" id="dataRange">—</div>
+    </div>
+  </header>
+
+  <div class="upload-zone" id="dropZone">
+    <span class="icon">⤴</span>
+    <div class="text">
+      <div class="label">ZOHO応募者CSVをアップロード</div>
+      <div class="hint">月別CSV（複数可）をドラッグ&ドロップ、または「ファイルを選択」</div>
+    </div>
+    <span class="upload-status" id="uploadStatus">サンプルデータ（2025年11月〜2026年3月／329件）を表示中</span>
+    <button class="btn-ghost" id="resetBtn">サンプルに戻す</button>
+    <label class="btn-primary" for="csvInput">ファイルを選択</label>
+    <input type="file" id="csvInput" accept=".csv" multiple>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label>期間</label>
+      <select id="periodFrom"></select>
+      <span class="period-sep">〜</span>
+      <select id="periodTo"></select>
+    </div>
+    <div class="filter-group">
+      <label>媒体</label>
+      <div class="chip-group" id="mediaChips"></div>
+    </div>
+    <div class="filter-group">
+      <label>雇用形態</label>
+      <div class="chip-group" id="empChips"></div>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <div class="section">
+    <div class="section-title"><span class="marker"></span>FUNNEL<span class="ja">採用ファネル</span></div>
+    <div class="card">
+      <div class="funnel" id="funnel"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="marker"></span>TREND<span class="ja">月次推移</span></div>
+    <div class="card">
+      <div class="tabs">
+        <button class="tab active" data-tab="apply">応募数</button>
+        <button class="tab" data-tab="hire">採用数</button>
+        <button class="tab" data-tab="rate">採用率</button>
+        <button class="tab" data-tab="revenue">売上</button>
+      </div>
+      <div class="chart-box tall"><canvas id="trendChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="marker"></span>CHANNEL × EMPLOYMENT<span class="ja">媒体別・雇用形態別</span></div>
+    <div class="split-grid">
+      <div class="card">
+        <div class="section-title" style="margin-bottom:10px; font-size:11px;">媒体別ファネル</div>
+        <table class="tbl" id="mediaTable"></table>
+      </div>
+      <div class="card">
+        <div class="section-title" style="margin-bottom:10px; font-size:11px;">採用された人の雇用形態：応募時 vs 採用時</div>
+        <div class="donut-pair">
+          <div class="donut-col">
+            <div class="donut-label">応募時</div>
+            <div class="chart-box short"><canvas id="empChartApply"></canvas></div>
+          </div>
+          <div class="donut-col">
+            <div class="donut-label">採用時</div>
+            <div class="chart-box short"><canvas id="empChart"></canvas></div>
+          </div>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:var(--text-faint); line-height:1.5;">
+          ※ 同じ採用者を2つの軸（応募時／採用時）で集計。形態の比率が違う場合は<b>応募時と異なる形態で採用された人がいる</b>ことを示します。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="marker"></span>DEMOGRAPHICS<span class="ja">応募者属性（年代・エリア）</span></div>
+    <div class="split-grid">
+      <div class="card">
+        <div class="section-title" style="margin-bottom:10px; font-size:11px;">年代別 応募・採用</div>
+        <div class="chart-box"><canvas id="ageChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="section-title" style="margin-bottom:10px; font-size:11px;">エリア（市町村）TOP</div>
+        <table class="tbl" id="areaTable"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="marker"></span>JOB MATCHING<span class="ja">応募 → 希望 → 採用の流れ</span></div>
+    <div class="card">
+      <div class="tabs">
+        <button class="tab active" data-flowtab="job">応募職種 vs 希望職種</button>
+        <button class="tab" data-flowtab="emp">応募形態 vs 希望形態</button>
+        <button class="tab" data-flowtab="hired">採用者の分析</button>
+      </div>
+      <div id="flowArea"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="marker"></span>JOB POSTINGS<span class="ja">応募職種ランキング</span></div>
+    <div class="card">
+      <table class="tbl" id="jobTable"></table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Powered by Link Core</span> ／ ZOHO応募者データをブラウザ内で集計（データは外部送信されません）
+  </div>
+</div>
+
+<script>
+// ============== Seed Data ==============
+const SEED_DATA = [{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"面接辞退","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"草津市","age":28,"company":"特定非営利活動法人ウェルメント栗東","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"守山市","age":49,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"守山市","age":54,"company":"医療法人小西醫院","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介不可（充足）","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"京都府","age":40,"company":"社会福祉法人にぎやか会","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"大津市","age":46,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"パート","job":"事務員","desired_job":"事務員","desired_emp":"パート","address":"犬上群(多賀町)","age":48,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"京都府","age":48,"company":"株式会社ケア21","fee":0},{"ym":"2025-11","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"事務員","desired_job":"","desired_emp":"","address":"東近江市","age":42,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"その他","employment":"パート","job":"支援員／夜勤専従","desired_job":"","desired_emp":"","address":"","age":2025,"company":"社会福祉法人はぐくみ会","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"パート;派遣社員","address":"東近江市","age":54,"company":"特定非営利活動法人ふるさと苑","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"その他","desired_job":"","desired_emp":"","address":"三重県","age":34,"company":"一般財団法人信貴山病院分院上野病院","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"正社員","job":"看護師","desired_job":"看護師","desired_emp":"正社員","address":"草津市","age":27,"company":"有限会社あかねはうす","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"面接辞退","media":"indeed","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"大津市","age":37,"company":"医療法人くろづ外科医院","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"他社内定","after_interview":"","media":"indeed","employment":"パート","job":"事務員","desired_job":"事務員","desired_emp":"パート","address":"草津市","age":52,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2025-11","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"ケアマネージャー","desired_job":"","desired_emp":"","address":"甲賀市","age":45,"company":"株式会社なんてん共働サービス","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"HP","employment":"パート","job":"調理","desired_job":"調理","desired_emp":"パート","address":"甲賀市","age":61,"company":"株式会社双心　デイサービス菫花庵","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"パート","job":"事務員","desired_job":"事務員","desired_emp":"パート","address":"草津市","age":43,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"パート","job":"送迎ドライバー","desired_job":"送迎ドライバー","desired_emp":"パート","address":"彦根市","age":62,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面談?連絡つかず","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職","desired_emp":"パート","address":"大津市","age":50,"company":"ウェルフェアー株式会社（㈱ハピネライフ一光様と担当同一）","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"京都府","age":63,"company":"株式会社成基ゴールフリーB5大津石山","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"支援員／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":72,"company":"社会福祉法人よつば会 障害福祉サービス事業所むつみ園","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"宿直","desired_job":"","desired_emp":"","address":"草津市","age":74,"company":"株式会社はぴねすさぽーと","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"indeed","employment":"パート","job":"事務員","desired_job":"事務員","desired_emp":"パート","address":"野洲市","age":51,"company":"株式会社セラム京滋支社","fee":100000},{"ym":"2025-11","status":"面談済","after_meeting":"紹介不可（充足）","after_interview":"","media":"HP","employment":"パート","job":"宿直","desired_job":"宿直","desired_emp":"パート","address":"甲賀市","age":74,"company":"株式会社はぴねすさぽーと","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"介護職;支援員","desired_emp":"","address":"米原市","age":29,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"その他","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"大津市","age":66,"company":"株式会社グランデグランデ　放課後等デイサービス風和々","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"事務員","desired_job":"","desired_emp":"","address":"東近江市","age":26,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"大津市","age":35,"company":"株式会社グランデグランデ　放課後等デイサービス風和々","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"京都府","age":30,"company":"社会福祉法人緑寿会 特別養護老人ホーム山科苑","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"不採用","media":"indeed","employment":"派遣","job":"事務員","desired_job":"事務員","desired_emp":"パート;派遣社員","address":"守山市","age":62,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2025-11","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"HP","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"湖南市","age":53,"company":"株式会社TKK（本社）","fee":0},{"ym":"2025-11","status":"辞退","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":30,"company":"株式会社SOYOKAZE大津ケアセンターそよ風","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"","desired_emp":"","address":"東近江市","age":32,"company":"特定非営利活動法人ふるさと苑","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"大津市","age":61,"company":"合同会社リノセント　ケアステーションそらいろ","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"選考辞退","media":"indeed","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"大津市","age":45,"company":"株式会社アストレリハビリデイサービスセンター瀬田店","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"面接辞退","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"米原市","age":28,"company":"就労継続支援A型事業所ウェルメント米原","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"機能訓練指導員","desired_job":"機能訓練指導員","desired_emp":"パート","address":"草津市","age":65,"company":"株式会社N-STYLE茶話本舗デイサービス近江本店（閉業）","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"パート","address":"守山市","age":56,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"パート","job":"学童保育指導員","desired_job":"学童保育指導員","desired_emp":"パート","address":"東近江市","age":18,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面談?連絡つかず","after_interview":"","media":"indeed","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"草津市","age":41,"company":"社会福祉法人栗東市社会福祉協議会","fee":0},{"ym":"2025-11","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"","desired_emp":"","address":"湖南市","age":37,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-11","status":"辞退","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"ケアマネージャー","desired_job":"","desired_emp":"","address":"京都府","age":63,"company":"株式会社　悠愛　つばき自立・訪問介護事業所","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"栗東市","age":64,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"Wワーク","address":"栗東市","age":53,"company":"株式会社近畿予防医学研究所","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"不採用","media":"indeed","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"派遣社員","address":"草津市","age":36,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"派遣","job":"支援員","desired_job":"支援員","desired_emp":"","address":"高島市","age":25,"company":"株式会社LSH","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"Wワーク","address":"東近江市","age":58,"company":"株式会社SOYOKAZE彦根ケアセンターそよ風","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"indeed","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"派遣社員","address":"草津市","age":36,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"大津市","age":35,"company":"株式会社グランデグランデ　放課後等デイサービス風和々","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"indeed","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"大津市","age":46,"company":"社会福祉法人大津市社会福祉事業団","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"近江八幡市","age":29,"company":"医療法人正志会グループホームちとせ","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"不採用","media":"indeed","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"派遣社員","address":"草津市","age":51,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"他社内定","after_interview":"","media":"indeed","employment":"正社員","job":"看護師","desired_job":"看護師","desired_emp":"正社員","address":"近江八幡市","age":57,"company":"合同会社ル・シエル","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"不採用","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"彦根市","age":29,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"パート;派遣社員","address":"大津市","age":49,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"HP","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"東近江市","age":37,"company":"特定非営利活動法人ふるさと苑","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"学童保育指導員","desired_job":"","desired_emp":"","address":"東近江市","age":22,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"見学（正社員）","after_interview":"面接辞退","media":"indeed","employment":"正社員","job":"支援員","desired_job":"介護職;支援員","desired_emp":"正社員","address":"大津市","age":38,"company":"社会福祉法人はぐくみ会","fee":0},{"ym":"2025-11","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"","desired_emp":"","address":"大津市","age":78,"company":"社会福祉法人よつば会 障害福祉サービス事業所むつみ園","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"","desired_emp":"","address":"大津市","age":39,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"長浜市","age":36,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"他社内定","after_interview":"","media":"indeed","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"湖南市","age":18,"company":"社会福祉法人ご縁会（本部）","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"支援員／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":31,"company":"社会福祉法人ノエル福祉会","fee":0},{"ym":"2025-11","status":"面談済","after_meeting":"面談?連絡つかず","after_interview":"","media":"indeed","employment":"パート","job":"事務員","desired_job":"事務員","desired_emp":"パート","address":"野洲市","age":43,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2025-11","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"支援員／夜勤専従","desired_job":"","desired_emp":"","address":"東近江市","age":72,"company":"株式会社ニチイケアパレス　近畿事業統括本部","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"草津市","age":57,"company":"株式会社ニチイケアパレス　近畿事業統括本部","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"選考辞退","media":"indeed","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"大津市","age":36,"company":"有限会社ケアサポートリブ","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"不採用","media":"その他","employment":"正社員","job":"看護助手","desired_job":"介護職／夜勤専従","desired_emp":"正社員","address":"野洲市","age":57,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"採用(正社員)","media":"登録者","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"大津市","age":44,"company":"","fee":438000},{"ym":"2025-12","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"HP","employment":"パート","job":"送迎ドライバー","desired_job":"送迎ドライバー","desired_emp":"","address":"長浜市","age":54,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"事務員","desired_job":"","desired_emp":"","address":"草津市","age":33,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"内定辞退","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"大津市","age":57,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-12","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"支援員／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":34,"company":"社会福祉法人ノエル福祉会","fee":0},{"ym":"2025-12","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"","desired_emp":"","address":"湖南市","age":37,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"その他","employment":"正社員","job":"介護職","desired_job":"介護職;介護職／夜勤専従","desired_emp":"正社員","address":"湖南市","age":32,"company":"","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"不採用","media":"indeed","employment":"派遣","job":"管理栄養士","desired_job":"管理栄養士･栄養士","desired_emp":"派遣社員","address":"大津市","age":58,"company":"株式会社OKC（旧：株式会社大津給食センター）","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"派遣","job":"管理栄養士","desired_job":"管理栄養士･栄養士","desired_emp":"派遣社員","address":"大津市","age":46,"company":"株式会社OKC（旧：株式会社大津給食センター）","fee":0},{"ym":"2025-12","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":72,"company":"有限会社浅善（グループホーム出愛荘）","fee":0},{"ym":"2025-12","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"看護師","desired_job":"","desired_emp":"","address":"甲賀市","age":36,"company":"社会福祉法人信楽福祉会　特別養護老人ホーム樹の郷","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"HP","employment":"正社員","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"","address":"近江八幡市","age":47,"company":"社会福祉法人友愛（三宅デイサービスセンター）","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"見学（正社員）","after_interview":"面接辞退","media":"HP","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"大津市","age":45,"company":"医療法人小西醫院","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"看護師","desired_job":"","desired_emp":"","address":"近江八幡市","age":73,"company":"株式会社ツクイ","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"","desired_emp":"","address":"その他","age":33,"company":"社会福祉法人新旭みのり会","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"","desired_emp":"","address":"東近江市","age":39,"company":"特定非営利活動法人NPOふくし永源寺ひいらぎの里","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職;介護職／夜勤専従","desired_emp":"パート","address":"湖南市","age":47,"company":"社会福祉法人近江ちいろば会","fee":0},{"ym":"2025-12","status":"","after_meeting":"","after_interview":"","media":"HP","employment":"正社員","job":"生活相談員","desired_job":"","desired_emp":"","address":"長浜市","age":36,"company":"中居産業株式会社びわ湖高齢者マンション悠悠の館","fee":0},{"ym":"2025-12","status":"面談不可","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"看護師","desired_job":"","desired_emp":"","address":"長浜市","age":51,"company":"社会福祉法人近江幸楽会","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"","desired_emp":"","address":"米原市","age":22,"company":"ソーシャルインクルー株式会社","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接確認中","after_interview":"","media":"indeed","employment":"正社員","job":"看護師","desired_job":"看護師","desired_emp":"正社員","address":"守山市","age":55,"company":"しが健康医療生活協同組合","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"面接辞退","media":"LINE","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"パート;派遣社員","address":"大津市","age":54,"company":"ウェルフェアー株式会社（㈱ハピネライフ一光様と担当同一）","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"HP","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"大津市","age":66,"company":"特定非営利活動法人夢の木","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"","desired_emp":"","address":"栗東市","age":26,"company":"社会福祉法人よつば会 障害福祉サービス事業所むつみ園","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"HP","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート（扶養内）","address":"近江八幡市","age":50,"company":"社会福祉法人小羊会デイサービスセンターむべの里・島","fee":150000},{"ym":"2025-12","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"野洲市","age":53,"company":"医療法人弘英会　琵琶湖大橋病院","fee":0},{"ym":"2025-12","status":"条件合わず","after_meeting":"","after_interview":"","media":"HP","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"守山市","age":42,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"学童保育指導員","desired_job":"支援員","desired_emp":"パート","address":"大津市","age":54,"company":"株式会社グランデグランデ　放課後等デイサービス風和々","fee":0},{"ym":"2025-12","status":"辞退","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"その他","age":35,"company":"特定非営利活動法人ウェルメント草津","fee":0},{"ym":"2025-12","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"","desired_emp":"","address":"東近江市","age":40,"company":"社会福祉法人はぐくみ会","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"福祉用具専門相談員","desired_job":"","desired_emp":"","address":"米原市","age":26,"company":"合同会社ル・シエル","fee":0},{"ym":"2025-12","status":"面談予約","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"大津市","age":52,"company":"社会福祉法人ノエル福祉会","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"機能訓練指導員","desired_job":"機能訓練指導員","desired_emp":"パート","address":"大津市","age":66,"company":"ウェルフェアー株式会社（㈱ハピネライフ一光様と担当同一）","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"書類選考","after_interview":"不採用","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"長浜市","age":36,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"書類選考","after_interview":"不採用","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"草津市","age":25,"company":"社会福祉法人よつば会 障害福祉サービス事業所むつみ園","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"京都府","age":29,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"登録者","employment":"派遣","job":"管理栄養士","desired_job":"管理栄養士･栄養士;事務員","desired_emp":"派遣社員","address":"草津市","age":43,"company":"株式会社OKC（旧：株式会社大津給食センター）","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"indeed","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"大津市","age":62,"company":"医療法人くろづ外科医院","fee":250000},{"ym":"2025-12","status":"面談済","after_meeting":"見学（正社員）","after_interview":"","media":"その他","employment":"","job":"支援員","desired_job":"支援員","desired_emp":"正社員;パート","address":"守山市","age":2026,"company":"まるさん合同会社","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"見学（正社員）","after_interview":"","media":"その他","employment":"","job":"支援員","desired_job":"支援員","desired_emp":"正社員;パート","address":"守山市","age":2026,"company":"まるさん合同会社","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"長浜市","age":34,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"草津市","age":37,"company":"特定非営利活動法人ウェルメント栗東","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"採用(正社員)","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"彦根市","age":28,"company":"社会福祉法人はぐくみ会","fee":350000},{"ym":"2025-12","status":"面談済","after_meeting":"書類選考","after_interview":"不採用","media":"indeed","employment":"正社員","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"正社員","address":"東近江市","age":55,"company":"社会福祉法人友愛","fee":0},{"ym":"2025-12","status":"面談予約","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"","desired_emp":"","address":"東近江市","age":30,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2025-12","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"蒲生郡(竜王町･日野町)","age":56,"company":"社会福祉法人湖青福祉会かふかの里","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"支援員／夜勤専従","desired_job":"支援員","desired_emp":"パート","address":"東近江市","age":66,"company":"社会福祉法人はぐくみ会","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"その他","employment":"正社員","job":"管理栄養士","desired_job":"管理栄養士･栄養士","desired_emp":"パート","address":"守山市","age":2025,"company":"社会福祉法人慈惠会ゆいの里","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"事務員","desired_job":"事務員","desired_emp":"パート（扶養内）","address":"守山市","age":56,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"大津市","age":45,"company":"株式会社夕照","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"その他","employment":"派遣","job":"事務員","desired_job":"事務員","desired_emp":"派遣社員","address":"守山市","age":45,"company":"医療法人社団真下胃腸科医院","fee":0},{"ym":"2025-12","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"","desired_emp":"","address":"近江八幡市","age":73,"company":"株式会社あいむ","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"契約社員","job":"学童保育指導員","desired_job":"学童保育指導員","desired_emp":"派遣社員","address":"野洲市","age":72,"company":"社会福祉法人野洲市社会福祉協議会","fee":0},{"ym":"2025-12","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"甲賀市","age":71,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"HP","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職;介護職／夜勤専従","desired_emp":"","address":"大津市","age":36,"company":"社会福祉法人真盛園","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"HP","employment":"パート","job":"送迎ドライバー","desired_job":"送迎ドライバー","desired_emp":"パート","address":"長浜市","age":52,"company":"就労継続支援A型事業所ウェルメント米原","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"派遣","job":"管理栄養士","desired_job":"管理栄養士･栄養士","desired_emp":"派遣社員","address":"東近江市","age":62,"company":"株式会社OKC（旧：株式会社大津給食センター）","fee":0},{"ym":"2026-01","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"HP","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"東近江市","age":56,"company":"医療法人泰山会グループホーム近江","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"HP","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"大津市","age":38,"company":"株式会社ミドリヤ　みどりやデイサービス仰木の里（守山市にも事業所あり）","fee":356400},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"vivicalWEB","employment":"派遣","job":"学童保育指導員","desired_job":"学童保育指導員","desired_emp":"派遣社員","address":"守山市","age":55,"company":"社会福祉法人友愛（学童保育）","fee":0},{"ym":"2026-01","status":"面談不可","after_meeting":"","after_interview":"","media":"HP","employment":"正社員","job":"その他","desired_job":"","desired_emp":"","address":"守山市","age":47,"company":"社会福祉法人慈惠会ゆいの里","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"見学（パート）","after_interview":"面接辞退","media":"indeed","employment":"派遣","job":"管理栄養士","desired_job":"管理栄養士･栄養士","desired_emp":"派遣社員","address":"大津市","age":47,"company":"株式会社OKC（旧：株式会社大津給食センター）","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"HP","employment":"パート","job":"送迎ドライバー","desired_job":"送迎ドライバー","desired_emp":"パート","address":"長浜市","age":65,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"その他","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"野洲市","age":61,"company":"株式会社あいむ","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"パート","job":"その他","desired_job":"その他","desired_emp":"パート","address":"草津市","age":74,"company":"社会福祉法人滋賀県障害児協会　湖南ホームタウン","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"HP","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"米原市","age":38,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"HP","employment":"パート","job":"宿直","desired_job":"宿直","desired_emp":"パート","address":"野洲市","age":67,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":150000},{"ym":"2026-01","status":"面談不可","after_meeting":"","after_interview":"","media":"HP","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"大津市","age":67,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-01","status":"辞退","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"","desired_emp":"","address":"湖南市","age":57,"company":"Be-tile合同会社 リハプライド栗東","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"その他","employment":"パート","job":"宿直","desired_job":"宿直","desired_emp":"パート","address":"甲賀市","age":74,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"面談不可","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"保育士or保育補助","desired_job":"","desired_emp":"","address":"東近江市","age":45,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"大津市","age":52,"company":"株式会社純夢プロジェクト","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"見学（パート）","after_interview":"面接辞退","media":"indeed","employment":"派遣","job":"看護師","desired_job":"看護師","desired_emp":"パート;派遣社員","address":"栗東市","age":40,"company":"有限会社ロッシュ・ジャパン","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"パート;派遣社員","address":"近江八幡市","age":58,"company":"医療法人小西醫院","fee":0},{"ym":"2026-01","status":"","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"看護師","desired_job":"","desired_emp":"","address":"守山市","age":55,"company":"しが健康医療生活協同組合","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"不採用","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"栗東市","age":33,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"看護師","desired_job":"","desired_emp":"","address":"三重県","age":57,"company":"株式会社レークイーストあおぞら訪問看護ステーション","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"面接辞退","media":"HP","employment":"パート","job":"宿直","desired_job":"宿直","desired_emp":"Wワーク","address":"栗東市","age":46,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"学童保育指導員","desired_job":"","desired_emp":"","address":"東近江市","age":19,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2026-01","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"送迎ドライバー","desired_job":"","desired_emp":"","address":"大津市","age":70,"company":"特定非営利活動法人ウェルメント大津","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"indeed","employment":"パート","job":"宿直","desired_job":"宿直","desired_emp":"パート","address":"草津市","age":54,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":150000},{"ym":"2026-01","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"HP","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"パート","address":"守山市","age":63,"company":"社会福祉法人友愛（三宅デイサービスセンター）","fee":0},{"ym":"2026-01","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"東近江市","age":72,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"宿直","desired_job":"宿直","desired_emp":"パート","address":"三重県","age":57,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"HP","employment":"パート","job":"宿直","desired_job":"宿直","desired_emp":"パート","address":"近江八幡市","age":75,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"HP","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"三重県","age":19,"company":"医療法人凰林会榊原白鳳病院","fee":0},{"ym":"2026-01","status":"面談不可","after_meeting":"","after_interview":"","media":"HP","employment":"パート","job":"宿直","desired_job":"","desired_emp":"","address":"大津市","age":81,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"内定辞退","media":"indeed","employment":"派遣","job":"その他","desired_job":"介護職","desired_emp":"派遣社員","address":"守山市","age":54,"company":"特定非営利活動法人ゆうらいふ","fee":0},{"ym":"2026-01","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"事務員","desired_job":"","desired_emp":"","address":"東近江市","age":31,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"その他","employment":"派遣","job":"宿直","desired_job":"宿直","desired_emp":"パート","address":"大津市","age":2026,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"甲賀市","age":49,"company":"社会福祉法人はぐくみ会","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"派遣","job":"看護助手","desired_job":"介護職","desired_emp":"派遣社員","address":"近江八幡市","age":42,"company":"公益財団法人青樹会滋賀八幡病院","fee":0},{"ym":"2026-01","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"HP","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"長浜市","age":36,"company":"合同会社 坂本ケアサービス","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"内定辞退","media":"HP","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"大津市","age":39,"company":"株式会社ニューアース","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"その他","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"東近江市","age":56,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"見学（正社員）","after_interview":"選考辞退","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"甲賀市","age":57,"company":"株式会社あいむ水口","fee":0},{"ym":"2026-01","status":"辞退","after_meeting":"","after_interview":"","media":"HP","employment":"パート","job":"介護職","desired_job":"","desired_emp":"","address":"栗東市","age":32,"company":"社会福祉法人慈惠会ゆいの里","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"その他","employment":"派遣","job":"学童保育指導員","desired_job":"学童保育指導員","desired_emp":"派遣社員","address":"愛知郡(愛荘町･豊里町･甲良町)","age":18,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2026-01","status":"条件合わず","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"看護師","desired_job":"","desired_emp":"","address":"","age":38,"company":"医療法人くろづ外科医院","fee":0},{"ym":"2026-01","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"","desired_emp":"","address":"栗東市","age":64,"company":"株式会社ル・シエル","fee":0},{"ym":"2026-01","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"大津市","age":72,"company":"社会福祉法人ノエル福祉会　グループホームすずか","fee":0},{"ym":"2026-01","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":55,"company":"ウェルフェアー株式会社（㈱ハピネライフ一光様と担当同一）","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"その他","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"大津市","age":44,"company":"社会福祉法人大津市社会福祉事業団","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"その他","employment":"派遣","job":"事務員","desired_job":"事務員","desired_emp":"派遣社員","address":"草津市","age":63,"company":"医療法人社団真下胃腸科医院","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介不可（充足）","after_interview":"","media":"indeed","employment":"派遣","job":"介護職","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"彦根市","age":51,"company":"特定非営利活動法人ふるさと苑","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"パート","address":"野洲市","age":22,"company":"社会福祉法人近江笑生会 特別養護老人ホームひいらぎ","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"東近江市","age":37,"company":"特定非営利活動法人ウェルメント近江八幡","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"登録者","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"草津市","age":61,"company":"","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"選考辞退","media":"HP","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"彦根市","age":30,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介不可（充足）","after_interview":"","media":"HP","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"近江八幡市","age":30,"company":"アサヒサンクリーン株式会社京都支店（2025年11月に株式会社ASCare（アスケア）へ社名変更）","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"vivicalWEB","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"甲賀市","age":24,"company":"かがやき税理士法人（旧北村・奥村事務所）","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"indeed","employment":"パート","job":"宿直","desired_job":"宿直","desired_emp":"パート","address":"栗東市","age":44,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":150000},{"ym":"2026-01","status":"面談済","after_meeting":"紹介不可（充足）","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"彦根市","age":50,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2026-01","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"その他","desired_job":"","desired_emp":"","address":"","age":69,"company":"社会福祉法人滋賀県障害児協会　湖南ホームタウン","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"近江八幡市","age":46,"company":"社会福祉法人にぎやか会","fee":0},{"ym":"2026-01","status":"登録検討","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"宿直","desired_job":"","desired_emp":"","address":"大津市","age":35,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"登録検討","after_meeting":"","after_interview":"","media":"HP","employment":"パート","job":"宿直","desired_job":"","desired_emp":"","address":"大津市","age":75,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"不採用","media":"登録者","employment":"正社員","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"正社員","address":"野洲市","age":56,"company":"","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"登録者","employment":"パート","job":"介護職／夜勤専従","desired_job":"夜勤専従","desired_emp":"Wワーク","address":"大津市","age":42,"company":"","fee":0},{"ym":"2026-01","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"学童保育指導員","desired_job":"","desired_emp":"","address":"大津市","age":20,"company":"株式会社グランデグランデ　放課後等デイサービス風和々","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面談?連絡つかず","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"愛知郡(愛荘町･豊里町･甲良町)","age":51,"company":"株式会社ハピネライフ一光","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"パート;派遣社員","address":"東近江市","age":37,"company":"特定非営利活動法人しみんふくしの家八日市","fee":624800},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"登録者","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"草津市","age":63,"company":"","fee":0},{"ym":"2026-01","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"彦根市","age":54,"company":"株式会社アイズケア","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"HP","employment":"パート","job":"調理","desired_job":"調理","desired_emp":"パート","address":"守山市","age":40,"company":"特定非営利活動法人ゆうらいふ","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"HP","employment":"パート","job":"支援員／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":47,"company":"株式会社SOYOKAZE大津ケアセンターそよ風","fee":0},{"ym":"2026-01","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"契約社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"近江八幡市","age":63,"company":"社会福祉法人あゆみ福祉会","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"採用(正社員)","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"大津市","age":37,"company":"医療法人弘英会　琵琶湖大橋病院","fee":499317},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"パート","job":"その他","desired_job":"支援員","desired_emp":"Wワーク","address":"野洲市","age":34,"company":"社会福祉法人滋賀県障害児協会　湖南ホームタウン","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"他社内定","after_interview":"","media":"indeed","employment":"正社員","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従;支援員","desired_emp":"正社員","address":"大津市","age":32,"company":"社会福祉法人すみれ厚生会　特別養護老人ホーム野洲篠原すみれ園","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"他社内定","after_interview":"","media":"その他","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"草津市","age":44,"company":"株式会社夕照","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"登録者","employment":"派遣","job":"事務員","desired_job":"管理栄養士･栄養士;事務員","desired_emp":"パート","address":"草津市","age":43,"company":"","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"その他","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"大津市","age":43,"company":"合同会社リハフィールドリハビリフィールド瀬田","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート;Wワーク","address":"大津市","age":2026,"company":"","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"派遣","job":"事務員","desired_job":"事務員","desired_emp":"派遣社員","address":"栗東市","age":41,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"生活相談員","desired_emp":"正社員","address":"大津市","age":2026,"company":"有限会社あかねはうす","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"採用(正社員)","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"大津市","age":30,"company":"特定非営利活動法人ウェルメント","fee":300000},{"ym":"2026-02","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"大津市","age":18,"company":"デイサービスまった里","fee":0},{"ym":"2026-02","status":"登録検討","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"草津市","age":52,"company":"社会福祉法人近江笑生会 特別養護老人ホームひいらぎ","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"湖南市","age":32,"company":"有限会社エスケイサポート認知症グループホームあかり家","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"選考辞退","media":"その他","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"大津市","age":31,"company":"社会福祉法人よつば会 障害福祉サービス事業所むつみ園","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"パート","job":"その他","desired_job":"その他","desired_emp":"パート","address":"守山市","age":17,"company":"社会福祉法人滋賀県障害児協会　湖南ホームタウン","fee":0},{"ym":"2026-02","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"大津市","age":34,"company":"社会福祉法人ノエル福祉会　ノエルしごとの家","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"登録者","employment":"パート","job":"介護職","desired_job":"介護職員","desired_emp":"パート;派遣社員","address":"草津市","age":57,"company":"","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"近江八幡市","age":34,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"不採用","media":"HP","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"東近江市","age":28,"company":"株式会社ウェッジケアデイサービスひととき","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職;支援員","desired_emp":"パート","address":"湖南市","age":58,"company":"有限会社エスケイサポート認知症グループホームあかり家","fee":0},{"ym":"2026-02","status":"不通","after_meeting":"","after_interview":"","media":"HP","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"米原市","age":26,"company":"就労継続支援A型事業所ウェルメント米原","fee":0},{"ym":"2026-02","status":"面談不可","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"介護職","desired_job":"","desired_emp":"","address":"長浜市","age":26,"company":"社会福祉法人尊徳会","fee":0},{"ym":"2026-02","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"栗東市","age":57,"company":"社会福祉法人寿会","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"その他","employment":"正社員","job":"看護師","desired_job":"看護師","desired_emp":"正社員","address":"彦根市","age":46,"company":"公益財団法人青樹会滋賀八幡病院訪問介護ヘルパーステーションおうみ","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職／夜勤専従","desired_emp":"パート","address":"湖南市","age":53,"company":"有限会社エスケイサポート認知症グループホームあかり家","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"草津市","age":48,"company":"社会福祉法人寿会","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"草津市","age":35,"company":"社会福祉法人寿会","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"indeed","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"近江八幡市","age":56,"company":"社会福祉法人すみれ厚生会　特別養護老人ホーム野洲篠原すみれ園","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"採用(正社員)","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"草津市","age":53,"company":"社会福祉法人にぎやか会","fee":200000},{"ym":"2026-02","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"HP","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"湖南市","age":28,"company":"医療法人小西醫院","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"東近江市","age":55,"company":"社会福祉法人寿会","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"面接辞退","media":"HP","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"栗東市","age":59,"company":"社会福祉法人すみれ厚生会特別養護老人ホーム栗東すみれ園","fee":0},{"ym":"2026-02","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"派遣","job":"介護職","desired_job":"","desired_emp":"","address":"東近江市","age":56,"company":"株式会社まごころ住宅まごころ湖東","fee":0},{"ym":"2026-02","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":70,"company":"有限会社ミキ","fee":0},{"ym":"2026-02","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"東近江市","age":42,"company":"社会福祉法人布引会特別養護老人ホーム玉園ハイム","fee":0},{"ym":"2026-02","status":"面談予約","after_meeting":"","after_interview":"","media":"HP","employment":"正社員","job":"管理者","desired_job":"","desired_emp":"","address":"京都府","age":52,"company":"株式会社TKK　デイサービス観学の里","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接辞退","after_interview":"","media":"HP","employment":"正社員","job":"看護師","desired_job":"看護師","desired_emp":"正社員","address":"大津市","age":46,"company":"医療法人弘英会住宅型有料老人ホーム琵琶湖大橋椋の癒","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"HP","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"草津市","age":35,"company":"特定非営利活動法人ウェルメント","fee":100000},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"登録者","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"草津市","age":63,"company":"","fee":0},{"ym":"2026-02","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"HP","employment":"パート","job":"看護師","desired_job":"","desired_emp":"","address":"甲賀市","age":36,"company":"有限会社デイサービスひまわりの家事業所","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"HP","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"大津市","age":47,"company":"有限会社あかねはうす","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"indeed","employment":"派遣","job":"管理栄養士","desired_job":"管理栄養士･栄養士","desired_emp":"派遣社員","address":"大津市","age":41,"company":"株式会社OKC（旧：株式会社大津給食センター）","fee":0},{"ym":"2026-02","status":"条件合わず","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"守山市","age":53,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-02","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"サービス提供責任者","desired_job":"","desired_emp":"","address":"守山市","age":53,"company":"株式会社　悠愛　つばき自立・訪問介護事業所","fee":0},{"ym":"2026-02","status":"辞退","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"調理","desired_job":"","desired_emp":"","address":"近江八幡市","age":73,"company":"社会福祉法人慈惠会ゆいの里","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"その他","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"東近江市","age":48,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"HP","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"愛知郡(愛荘町･豊里町･甲良町)","age":48,"company":"社会福祉法人六心会特別養護老人ホーム清水苑（本部）","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"事務員","desired_job":"","desired_emp":"","address":"彦根市","age":36,"company":"株式会社びわ湖タイル","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面談?連絡つかず","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"犬上群(多賀町)","age":46,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-02","status":"面談不可","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"東近江市","age":72,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"登録者","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"大津市","age":27,"company":"","fee":0},{"ym":"2026-02","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"","desired_emp":"","address":"草津市","age":57,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"大津市","age":58,"company":"医療法人芙蓉会南草津病院","fee":0},{"ym":"2026-02","status":"辞退","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"守山市","age":64,"company":"SOUシニアケア株式会社","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"その他","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"京都府","age":55,"company":"","fee":0},{"ym":"2026-02","status":"辞退","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"","desired_emp":"","address":"守山市","age":48,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-02","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"彦根市","age":59,"company":"社会福祉法人布引会特別養護老人ホーム玉園ハイム","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"選考辞退","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"守山市","age":49,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-02","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"","desired_emp":"","address":"その他","age":27,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-02","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"","desired_emp":"","address":"東近江市","age":66,"company":"社会福祉法人ノエル福祉会","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"採用(正社員)","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"守山市","age":20,"company":"株式会社セラム京滋支社","fee":390000},{"ym":"2026-02","status":"面談済","after_meeting":"求職辞退","after_interview":"選考辞退","media":"クリーニング","employment":"","job":"","desired_job":"介護職;支援員","desired_emp":"正社員;派遣社員","address":"栗東市","age":57,"company":"","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"面接辞退","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"大津市","age":37,"company":"社会福祉法人誠光福祉会特別養護老人ホームえんゆうの郷","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面談?連絡つかず","after_interview":"","media":"indeed","employment":"正社員","job":"看護師","desired_job":"看護師","desired_emp":"正社員","address":"草津市","age":22,"company":"医療法人弘英会　琵琶湖大橋病院","fee":0},{"ym":"2026-02","status":"面談済","after_meeting":"面談?連絡つかず","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員;契約社員","address":"大津市","age":66,"company":"特定非営利活動法人湖国福祉会　デイサービスみずうみ","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"ケアマネージャー","desired_job":"","desired_emp":"","address":"東近江市","age":72,"company":"特定非営利活動法人NPOふくし永源寺やすらぎの里","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面談?連絡つかず","after_interview":"","media":"indeed","employment":"パート","job":"介護職","desired_job":"介護職／夜勤専従","desired_emp":"パート","address":"近江八幡市","age":29,"company":"株式会社雅","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"indeed","employment":"正社員","job":"機能訓練指導員","desired_job":"機能訓練指導員","desired_emp":"Wワーク","address":"草津市","age":66,"company":"株式会社YK地所ケアセンターほたるの里デイサービスあらいぜき","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"vivicalWEB","employment":"派遣","job":"学童保育指導員","desired_job":"学童保育指導員","desired_emp":"派遣社員","address":"守山市","age":42,"company":"社会福祉法人友愛（学童保育）","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"その他","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"パート","address":"草津市","age":51,"company":"株式会社近畿予防医学研究所","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"indeed","employment":"正社員","job":"看護師","desired_job":"看護師","desired_emp":"正社員;パート","address":"大津市","age":59,"company":"株式会社MICシルバーサービスデイサービス栗林の郷","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"","desired_emp":"","address":"大津市","age":26,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"正社員","job":"ケアマネージャー","desired_job":"ケアマネｰジャー","desired_emp":"正社員","address":"京都府","age":58,"company":"オーチャード・ケア株式会社","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"その他","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"蒲生郡(竜王町･日野町)","age":53,"company":"特定非営利活動法人りゅうおう","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"求職者検討中","after_interview":"","media":"HP","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"","address":"愛知郡(愛荘町･豊里町･甲良町)","age":42,"company":"特定非営利活動法人ゆうらいふ","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"選考辞退","media":"その他","employment":"パート","job":"事務員","desired_job":"事務員","desired_emp":"パート","address":"守山市","age":55,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"その他","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"","address":"近江八幡市","age":51,"company":"特定非営利活動法人ゆうらいふ","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"犬上群(多賀町)","age":35,"company":"株式会社SOYOKAZE彦根ケアセンターそよ風","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"見学（正社員）","after_interview":"選考辞退","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"栗東市","age":30,"company":"社会福祉法人栗東市社会福祉協議会","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"正社員","job":"管理栄養士","desired_job":"管理栄養士･栄養士","desired_emp":"正社員","address":"大津市","age":35,"company":"社会福祉法人滋賀同仁会千寿の郷","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職;介護職／夜勤専従","desired_emp":"派遣社員","address":"大津市","age":46,"company":"社会福祉法人誠光福祉会特別養護老人ホームえんゆうの郷","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"不採用","media":"indeed","employment":"派遣","job":"事務員","desired_job":"事務員","desired_emp":"派遣社員","address":"栗東市","age":43,"company":"株式会社びわ湖タイル","fee":0},{"ym":"2026-03","status":"面談不可","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"調理","desired_job":"","desired_emp":"","address":"草津市","age":64,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"事務員","desired_job":"","desired_emp":"","address":"栗東市","age":20,"company":"株式会社びわ湖タイル","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"正社員","job":"サービス管理責任者","desired_job":"管理者","desired_emp":"正社員","address":"京都府","age":62,"company":"株式会社クオリード","fee":0},{"ym":"2026-03","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"野洲市","age":21,"company":"株式会社夕照","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接辞退","after_interview":"","media":"その他","employment":"正社員","job":"管理者","desired_job":"管理者","desired_emp":"正社員","address":"彦根市","age":50,"company":"HITOWAケアサービス株式会社イリーゼ草津","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"その他","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職;介護職／夜勤専従","desired_emp":"派遣社員","address":"大津市","age":56,"company":"ウェルフェアー株式会社（㈱ハピネライフ一光様と担当同一）","fee":0},{"ym":"2026-03","status":"条件合わず","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"事務員","desired_job":"","desired_emp":"","address":"湖南市","age":27,"company":"株式会社びわ湖タイル","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"","age":31,"company":"社会福祉法人京都悠仁福祉会　京都認知症総合センター","fee":0},{"ym":"2026-03","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"","desired_emp":"","address":"栗東市","age":33,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"大津市","age":22,"company":"株式会社ハイメディック　アクティバ琵琶","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"他社内定","after_interview":"","media":"indeed","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"守山市","age":66,"company":"社会福祉法人誠光福祉会 カナリヤの家大門","fee":0},{"ym":"2026-03","status":"条件合わず","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"派遣社員","address":"","age":36,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2026-03","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"HP","employment":"派遣","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"東近江市","age":42,"company":"社会福祉法人布引会特別養護老人ホーム玉園ハイム","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"介護職;支援員","desired_emp":"正社員","address":"草津市","age":53,"company":"社会福祉法人湖南会　蛍の里","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"看護師","desired_job":"看護師","desired_emp":"パート","address":"大津市","age":40,"company":"デイサービスまった里","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"派遣","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"派遣社員","address":"東近江市","age":55,"company":"社会福祉法人布引会特別養護老人ホーム玉園ハイム","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"派遣","job":"介護職","desired_job":"介護職／夜勤専従","desired_emp":"Wワーク","address":"守山市","age":48,"company":"社会福祉法人誠光福祉会特別養護老人ホームえんゆうの郷","fee":0},{"ym":"2026-03","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"京都府","age":38,"company":"株式会社　ＫＩＮＪＩＴＯ　住宅型有料老人ホーム　ライフサイズ伏見","fee":0},{"ym":"2026-03","status":"","after_meeting":"","after_interview":"","media":"","employment":"","job":"看護師","desired_job":"","desired_emp":"","address":"","age":2026,"company":"","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"パート","address":"京都府","age":70,"company":"株式会社はぴねすさぽーと","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"面接辞退","media":"indeed","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"派遣社員","address":"草津市","age":33,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"クリーニング","employment":"派遣","job":"調理","desired_job":"管理栄養士･栄養士;調理","desired_emp":"派遣社員","address":"大津市","age":47,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"面接辞退","media":"HP","employment":"パート","job":"介護職","desired_job":"介護職","desired_emp":"パート","address":"栗東市","age":62,"company":"社会福祉法人慈惠会ゆいの里","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"クリーニング","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"栗東市","age":46,"company":"","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"求職辞退","after_interview":"","media":"indeed","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"派遣社員","address":"その他","age":28,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"不採用","media":"クリーニング","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"東近江市","age":59,"company":"","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"その他","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員;派遣社員","address":"大津市","age":2026,"company":"","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介不可","after_interview":"","media":"その他","employment":"パート","job":"介護職","desired_job":"介護職;介護職／夜勤専従","desired_emp":"パート","address":"長浜市","age":2026,"company":"","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"内定辞退","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"近江八幡市","age":24,"company":"社会福祉法人小羊会デイサービスセンターむべの里・島","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"不採用","media":"indeed","employment":"正社員","job":"支援員","desired_job":"支援員","desired_emp":"正社員","address":"湖南市","age":45,"company":"社会福祉法人よつば会 障害福祉サービス事業所むつみ園","fee":0},{"ym":"2026-03","status":"辞退","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"学童保育指導員","desired_job":"","desired_emp":"","address":"東近江市","age":72,"company":"特定非営利活動法人しみんふくしの家八日市","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"事務員","desired_job":"","desired_emp":"","address":"草津市","age":44,"company":"株式会社アドバンテック","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"内定辞退","media":"HP","employment":"派遣","job":"調理","desired_job":"調理","desired_emp":"派遣社員","address":"栗東市","age":56,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2026-03","status":"条件合わず","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"事務員","desired_job":"","desired_emp":"","address":"草津市","age":64,"company":"株式会社アドバンテック","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"不採用","media":"HP","employment":"正社員","job":"ケアマネージャー","desired_job":"ケアマネｰジャー","desired_emp":"正社員;パート","address":"大津市","age":65,"company":"医療法人滋賀勤労者保健会膳所在宅ケアステーション陽だまり","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"派遣","job":"調理","desired_job":"","desired_emp":"","address":"守山市","age":55,"company":"社会福祉法人淡海すぎのこ会すぎのここども園","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"採用(正社員)","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"甲賀市","age":28,"company":"有限会社東洋福祉会デイサービスセンター水車","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"条件合わず","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"介護職","desired_emp":"正社員","address":"愛知郡(愛荘町･豊里町･甲良町)","age":51,"company":"株式会社ハピネライフ一光","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"他社内定","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"介護職／夜勤専従","desired_emp":"Wワーク","address":"大津市","age":62,"company":"アークス株式会社ぐらんしーる近江神宮北","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"Wワーク","address":"大津市","age":64,"company":"社会福祉法人にぎやか会","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(パート)","after_interview":"採用(パート)","media":"その他","employment":"パート","job":"支援員","desired_job":"支援員","desired_emp":"パート","address":"野洲市","age":60,"company":"特定非営利活動法人ウェルメント","fee":210000},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"クリーニング","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"大津市","age":52,"company":"","fee":0},{"ym":"2026-03","status":"登録者","after_meeting":"紹介不可","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"大津市","age":46,"company":"株式会社LSH","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(正社員)","after_interview":"採用(正社員)","media":"indeed","employment":"正社員","job":"機能訓練指導員","desired_job":"機能訓練指導員","desired_emp":"正社員","address":"草津市","age":45,"company":"合同会社ル・シエル","fee":600000},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"犬上群(多賀町)","age":34,"company":"アサヒサンクリーン株式会社京都支店（2025年11月に株式会社ASCare（アスケア）へ社名変更）","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"パート","job":"介護職／夜勤専従","desired_job":"","desired_emp":"","address":"","age":26,"company":"社会福祉法人くらしのハーモニー　ハーモニーこが","fee":0},{"ym":"2026-03","status":"","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"支援員","desired_job":"","desired_emp":"","address":"近江八幡市","age":61,"company":"特定非営利活動法人ウェルメント","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"紹介先探し中","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"生活相談員;事務員","desired_emp":"正社員","address":"大津市","age":34,"company":"社会福祉法人大津びけん会　特別養護老人ホームひかりの里","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"他社内定","after_interview":"","media":"indeed","employment":"正社員","job":"事務員","desired_job":"事務員","desired_emp":"正社員","address":"大津市","age":33,"company":"株式会社セラム京滋支社","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"indeed","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"長浜市","age":30,"company":"中居産業株式会社びわ湖高齢者マンション悠悠の館","fee":0},{"ym":"2026-03","status":"不通","after_meeting":"","after_interview":"","media":"HP","employment":"正社員","job":"介護職","desired_job":"","desired_emp":"","address":"彦根市","age":28,"company":"株式会社アイズケア","fee":0},{"ym":"2026-03","status":"面談済","after_meeting":"面接設定(派遣)","after_interview":"採用(派遣)","media":"登録者","employment":"派遣","job":"介護職","desired_job":"介護職","desired_emp":"派遣社員","address":"草津市","age":62,"company":"","fee":0}];
+
+// ============== State ==============
+let allData = SEED_DATA.slice();
+let dataSource = 'sample';
+const state = {
+  periodFrom: null,  // 'YYYY-MM' or null = 最古
+  periodTo: null,    // 'YYYY-MM' or null = 最新
+  media: new Set(['all']),
+  emp: new Set(['all']),
+  trendTab: 'apply',
+  flowTab: 'job',
+};
+let trendChart = null, empChart = null, empChartApply = null, ageChart = null, hiredJobChart = null;
+
+// Color palette
+const MINT = '#1eaf75';
+const MINT_LIGHT = '#6fdcb1';
+const MINT_DARK = '#117350';
+const MEDIA_COLORS = {
+  'indeed': '#4a90c4',
+  'HP': '#1eaf75',
+  'クリーニング': '#d49a2a',
+  'その他': '#9479c9',
+  '登録者': '#c97fa8',
+  'vivicalWEB': '#d96666',
+  'LINE': '#7a8589',
+  'vivical': '#e08a44',
+  'HRF': '#6ba84f',
+  'iRec': '#52aab5',
+  '介護説明会': '#a86fcc',
+};
+const EMP_COLORS = { '正社員': '#4a90c4', 'パート': '#1eaf75', '派遣': '#d49a2a', '契約社員': '#9479c9', 'その他': '#7a8589' };
+const FUNNEL_COLORS = ['#6fdcb1', '#3cc790', '#1eaf75', '#169061', '#0d5a3f'];
+
+// ============== Funnel classification ==============
+// 応募 → コンタクト(面談済+登録者) → 面談 → 面接設定 → 面接実施 → 採用
+function classify(r) {
+  return {
+    apply: true,
+    contact: r.status === '面談済' || r.status === '登録者',
+    meeting: r.status === '面談済',
+    interview_set: (r.after_meeting || '').includes('面接設定'),
+    interview_done: (r.after_interview || '').trim() !== '',
+    hire: (r.after_interview || '').includes('採用'),
+  };
+}
+
+// 採用時の実雇用形態
+function realEmp(r) {
+  if ((r.after_interview || '').includes('採用')) {
+    const m = r.after_interview.match(/採用\(([^)]+)\)/);
+    if (m) return normalizeEmp(m[1]);
+  }
+  return null;
+}
+
+// 雇用形態の表記ゆれを統一
+// 派遣 / 派遣社員 → 派遣、 パート（扶養内）/Wワーク → パート系として扱う
+function normalizeEmp(v) {
+  if (!v) return '';
+  const s = String(v).trim();
+  if (!s) return '';
+  // 派遣社員系
+  if (s === '派遣' || s === '派遣社員') return '派遣';
+  // パート系 (扶養内含む)
+  if (s === 'パート' || s.startsWith('パート（') || s.startsWith('パート(')) return 'パート';
+  if (s === 'Wワーク') return 'パート';
+  if (s === '正社員') return '正社員';
+  if (s === '契約社員') return '契約社員';
+  return s;
+}
+
+// 複数希望（"パート;派遣社員"）を配列に分解して、それぞれ正規化＆重複除去
+function normalizeEmpList(v) {
+  if (!v) return [];
+  return [...new Set(
+    String(v).split(/[;；,、]/).map(s => normalizeEmp(s.trim())).filter(s => s)
+  )];
+}
+
+// 職種の表記ゆれ統一（明らかな同義語のみ）
+// 表示にも使われるので、正規形は「正しい/一般的な表記」を採用
+function normalizeJob(v) {
+  if (!v) return '';
+  let s = String(v).trim();
+  if (!s) return '';
+  // 文字化け系: 長音記号の違いを統一 (ｰ → ー)
+  s = s.replace(/ｰ/g, 'ー');
+  // 中黒の違いを統一 (半角・全角)
+  s = s.replace(/･/g, '・');
+  // 同義語マッピング
+  const synonyms = {
+    '管理栄養士・栄養士': '管理栄養士',  // 希望側で広げてるだけ
+    '介護職員': '介護職',
+  };
+  return synonyms[s] || s;
+}
+
+// 職種の "グループキー" を返す（差分判定専用）
+// 「介護職」「介護職／夜勤専従」「介護職／日勤のみ」などを同一グループとして扱う
+// 表示には使わない、純粋に比較用
+function jobGroupKey(v) {
+  const n = normalizeJob(v);
+  if (!n) return '';
+  // 「／」「/」より前の部分をベース職種とみなす（夜勤専従等の働き方修飾を無視）
+  return n.split(/[／\/]/)[0];
+}
+
+// 複数希望職種を配列に分解、表記ゆれ統一、重複除去
+function normalizeJobList(v) {
+  if (!v) return [];
+  return [...new Set(
+    String(v).split(/[;；,、]/).map(s => normalizeJob(s.trim())).filter(s => s)
+  )];
+}
+
+// 職種の表記ゆれを統一
+// 「介護職／夜勤専従」「介護職員」→「介護職」のように、ベース職種に寄せる
+function normalizeJob(v) {
+  if (!v) return '';
+  let s = String(v).trim();
+  if (!s) return '';
+  // 長音記号の文字化け対策（半角ｰ → 全角ー）
+  s = s.replace(/ｰ/g, 'ー');
+  // 中黒の揺れ統一（半角･ → 全角・）
+  s = s.replace(/･/g, '・');
+  // 「○○／夜勤専従」「○○/夜勤専従」「○○ 夜勤専従」→ ○○
+  s = s.replace(/[／/]\s*夜勤専従\s*$/, '').trim();
+  // 「介護職員」→「介護職」
+  if (s === '介護職員') return '介護職';
+  // 「夜勤専従」単独はそのまま
+  if (!s) return '';
+  // 「管理栄養士・栄養士」→「管理栄養士」（管理栄養士は栄養士を内包する上位資格）
+  if (s.startsWith('管理栄養士')) return '管理栄養士';
+  return s;
+}
+
+// 複数希望（";"区切り）を配列に分解して、それぞれ正規化＆重複除去
+function normalizeJobList(v) {
+  if (!v) return [];
+  return [...new Set(
+    String(v).split(/[;；,、]/).map(s => normalizeJob(s.trim())).filter(s => s)
+  )];
+}
+
+// 住所から市町村抽出（最初の「市」「郡」「区」「町」まで）
+function extractArea(addr) {
+  if (!addr) return '(未設定)';
+  // 京都府などの県名がついている場合
+  const cityMatch = addr.match(/^[^市郡区町]*?[市郡区町]/);
+  if (cityMatch) return cityMatch[0];
+  // 県名だけならそのまま
+  const prefMatch = addr.match(/^.+?[都道府県]/);
+  if (prefMatch) return prefMatch[0];
+  return addr.slice(0, 8) || '(未設定)';
+}
+
+// 年代抽出（異常値は弾く）
+function ageBand(age) {
+  const n = Number(age);
+  if (!Number.isFinite(n) || n < 10 || n > 100) return null;
+  const decade = Math.floor(n / 10) * 10;
+  return decade + '代';
+}
+
+// ============== Filter ==============
+function getFiltered() {
+  return allData.filter(r => {
+    if (state.periodFrom && r.ym < state.periodFrom) return false;
+    if (state.periodTo && r.ym > state.periodTo) return false;
+    if (!state.media.has('all') && !state.media.has(r.media)) return false;
+    if (!state.emp.has('all') && !state.emp.has(r.employment)) return false;
+    return true;
+  });
+}
+
+// ============== Aggregation ==============
+function aggregate(rows) {
+  const totals = { apply:0, contact:0, meeting:0, interview_set:0, interview_done:0, hire:0, revenue:0 };
+  rows.forEach(r => {
+    const c = classify(r);
+    for (const k in totals) {
+      if (k === 'revenue') continue;
+      if (c[k]) totals[k]++;
+    }
+    if (c.hire) totals.revenue += Number(r.fee || 0);
+  });
+  return totals;
+}
+
+// 数値フォーマット
+function fmtNum(n) { return n.toLocaleString('ja-JP'); }
+function fmtYen(n) {
+  if (n >= 10000) return (n / 10000).toFixed(n >= 100000 ? 0 : 1) + '万';
+  return n.toLocaleString('ja-JP');
+}
+
+// ============== KPI ==============
+function renderKpi(rows) {
+  const t = aggregate(rows);
+  const items = [
+    { cls:'--apply', label:'応募', value:fmtNum(t.apply), rate:'' },
+    { cls:'--contact', label:'コンタクト', value:fmtNum(t.contact), rate: t.apply ? `応募比 <b>${Math.round(t.contact/t.apply*100)}%</b>` : '' },
+    { cls:'--meeting', label:'面談実施', value:fmtNum(t.meeting), rate: t.contact ? `コンタクト比 <b>${Math.round(t.meeting/t.contact*100)}%</b>` : '' },
+    { cls:'--interview', label:'面接実施', value:fmtNum(t.interview_done), rate: t.meeting ? `面談比 <b>${Math.round(t.interview_done/t.meeting*100)}%</b>` : '' },
+    { cls:'--hire', label:'採用', value:fmtNum(t.hire), rate: t.apply ? `応募比 <b>${Math.round(t.hire/t.apply*100)}%</b>` : '' },
+    { cls:'--revenue', label:'売上 (紹介手数料)', value:fmtYen(t.revenue), unit:'円', rate: t.hire ? `1件平均 <b>${fmtYen(Math.round(t.revenue/t.hire))}円</b>` : '' },
+  ];
+  document.getElementById('kpiGrid').innerHTML = items.map(i => `
+    <div class="kpi ${i.cls}">
+      <div class="label">${i.label}</div>
+      <div class="value">${i.value}${i.unit ? `<span class="unit">${i.unit}</span>` : ''}</div>
+      <div class="rate">${i.rate || '&nbsp;'}</div>
+    </div>
+  `).join('');
+}
+
+// ============== Funnel ==============
+function renderFunnel(rows) {
+  const t = aggregate(rows);
+  const stages = [
+    { label:'応募', value: t.apply, color: FUNNEL_COLORS[0] },
+    { label:'コンタクト', value: t.contact, color: FUNNEL_COLORS[1] },
+    { label:'面談実施', value: t.meeting, color: FUNNEL_COLORS[2] },
+    { label:'面接実施', value: t.interview_done, color: FUNNEL_COLORS[3] },
+    { label:'採用', value: t.hire, color: FUNNEL_COLORS[4] },
+  ];
+  const max = t.apply || 1;
+  document.getElementById('funnel').innerHTML = stages.map((s, i) => {
+    const w = (s.value/max*100).toFixed(1);
+    const prevV = i === 0 ? null : stages[i-1].value;
+    const conv = prevV != null && prevV > 0 ? `前段階比 <b>${Math.round(s.value/prevV*100)}%</b>` : '応募ベース';
+    return `
+      <div class="funnel-row">
+        <div class="funnel-label">${s.label}</div>
+        <div class="funnel-bar-wrap">
+          <div class="funnel-bar" style="width:${w}%; --bar-color:${s.color}"></div>
+          <div class="funnel-value">${s.value}</div>
+        </div>
+        <div class="funnel-conv">${conv}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ============== Trend ==============
+function renderTrend(rows) {
+  const months = [...new Set(allData.map(r => r.ym))].sort();
+  const byMonth = {};
+  months.forEach(m => byMonth[m] = { apply:0, hire:0, revenue:0 });
+  rows.forEach(r => {
+    const c = classify(r);
+    if (!byMonth[r.ym]) byMonth[r.ym] = { apply:0, hire:0, revenue:0 };
+    byMonth[r.ym].apply++;
+    if (c.hire) {
+      byMonth[r.ym].hire++;
+      byMonth[r.ym].revenue += Number(r.fee || 0);
+    }
+  });
+
+  let datasets, chartType = 'bar';
+  const tab = state.trendTab;
+  if (tab === 'apply') {
+    datasets = [{
+      label: '応募数', data: months.map(m => byMonth[m].apply),
+      backgroundColor: 'rgba(74, 144, 196, 0.75)', borderColor: '#4a90c4', borderWidth: 1.5, borderRadius: 6,
+    }];
+  } else if (tab === 'hire') {
+    datasets = [{
+      label: '採用数', data: months.map(m => byMonth[m].hire),
+      backgroundColor: 'rgba(30, 175, 117, 0.75)', borderColor: MINT, borderWidth: 1.5, borderRadius: 6,
+    }];
+  } else if (tab === 'rate') {
+    chartType = 'line';
+    datasets = [{
+      label: '採用率 (%)', data: months.map(m => byMonth[m].apply ? +(byMonth[m].hire/byMonth[m].apply*100).toFixed(1) : 0),
+      borderColor: MINT, backgroundColor: 'rgba(30, 175, 117, 0.1)', borderWidth: 2.5,
+      tension: 0.3, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: MINT, fill: true,
+    }];
+  } else {
+    // revenue
+    datasets = [{
+      label: '売上 (万円)', data: months.map(m => +(byMonth[m].revenue / 10000).toFixed(1)),
+      backgroundColor: 'rgba(17, 115, 80, 0.75)', borderColor: MINT_DARK, borderWidth: 1.5, borderRadius: 6,
+    }];
+  }
+
+  const ctx = document.getElementById('trendChart');
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(ctx, {
+    type: chartType,
+    data: { labels: months, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#5a6862', font: { family: 'Noto Sans JP', size: 12 } } },
+        tooltip: { backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 12, displayColors: false,
+          callbacks: tab === 'revenue' ? { label: c => ` 売上: ${c.parsed.y.toLocaleString()} 万円` } : {}
+        },
+      },
+      scales: {
+        x: { ticks: { color: '#5a6862' }, grid: { color: '#e6ecea' } },
+        y: { beginAtZero: true, ticks: { color: '#5a6862' }, grid: { color: '#e6ecea' } },
+      },
+    }
+  });
+}
+
+// ============== Media Table ==============
+function renderMediaTable(rows) {
+  const map = {};
+  rows.forEach(r => {
+    const m = r.media || '(未設定)';
+    if (!map[m]) map[m] = { apply:0, contact:0, meeting:0, interview_done:0, hire:0 };
+    const c = classify(r);
+    map[m].apply++;
+    if (c.contact) map[m].contact++;
+    if (c.meeting) map[m].meeting++;
+    if (c.interview_done) map[m].interview_done++;
+    if (c.hire) map[m].hire++;
+  });
+  const list = Object.entries(map).sort((a,b)=>b[1].apply-a[1].apply);
+  if (list.length === 0) {
+    document.getElementById('mediaTable').innerHTML = '';
+    return;
+  }
+  const maxApply = Math.max(...list.map(([_,v])=>v.apply), 1);
+  document.getElementById('mediaTable').innerHTML = `
+    <thead><tr><th>媒体</th><th>応募</th><th>面談</th><th>採用</th><th>採用率</th><th class="bar-cell">応募割合</th></tr></thead>
+    <tbody>
+    ${list.map(([m,v]) => {
+      const col = MEDIA_COLORS[m] || '#7a8589';
+      const rate = v.apply ? Math.round(v.hire/v.apply*100) : 0;
+      const bar = (v.apply/maxApply*100).toFixed(0);
+      return `<tr>
+        <td><span class="media-dot" style="background:${col}"></span>${m}</td>
+        <td class="num">${v.apply}</td>
+        <td class="num">${v.meeting}</td>
+        <td class="num">${v.hire}</td>
+        <td class="num"><span class="rate-pill">${rate}%</span></td>
+        <td class="bar-cell"><div class="mini-bar"><div style="width:${bar}%; background:${col}"></div></div></td>
+      </tr>`;
+    }).join('')}
+    </tbody>`;
+}
+
+// ============== Employment Donut Pair (応募時 vs 採用時) ==============
+function renderEmpChart(rows) {
+  const adopted = rows.filter(r => (r.after_interview || '').includes('採用'));
+
+  // 応募時：normalizeEmp(r.employment)
+  const applyMap = {};
+  adopted.forEach(r => {
+    const e = normalizeEmp(r.employment);
+    if (!e) return;
+    applyMap[e] = (applyMap[e]||0)+1;
+  });
+  // 採用時：realEmp(r)
+  const hireMap = {};
+  adopted.forEach(r => {
+    const e = realEmp(r);
+    if (!e) return;
+    hireMap[e] = (hireMap[e]||0)+1;
+  });
+
+  // 凡例の順序を揃えるために両者の和集合のキーを共通順で作る
+  const allKeys = [...new Set([...Object.keys(applyMap), ...Object.keys(hireMap)])];
+  // 件数（合算）が多い順にソート
+  allKeys.sort((a,b) => ((hireMap[b]||0)+(applyMap[b]||0)) - ((hireMap[a]||0)+(applyMap[a]||0)));
+
+  // 採用データが0の場合はメッセージ
+  if (allKeys.length === 0 || adopted.length === 0) {
+    const card = document.getElementById('empChart').closest('.card');
+    if (card) {
+      const pair = card.querySelector('.donut-pair');
+      if (pair) pair.innerHTML = `<div class="empty" style="grid-column: 1 / -1;"><span class="icon">○</span>採用データがありません<div class="hint">フィルタを変更してお試しください</div></div>`;
+    }
+    if (empChart) { empChart.destroy(); empChart = null; }
+    if (empChartApply) { empChartApply.destroy(); empChartApply = null; }
+    return;
+  }
+
+  const colors = allKeys.map(l => EMP_COLORS[l] || '#7a8589');
+  const applyData = allKeys.map(k => applyMap[k] || 0);
+  const hireData = allKeys.map(k => hireMap[k] || 0);
+  const applyTotal = applyData.reduce((s,v)=>s+v, 0);
+  const hireTotal = hireData.reduce((s,v)=>s+v, 0);
+
+  // 共通の chart オプション生成
+  function makeDonut(canvasId, prevChart, dataArr, total) {
+    const ctx = document.getElementById(canvasId);
+    if (prevChart) prevChart.destroy();
+    const labels = allKeys.map((k, i) => `${k} (${dataArr[i]}名・${total ? Math.round(dataArr[i]/total*100) : 0}%)`);
+    return new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: dataArr, backgroundColor: colors, borderColor: '#ffffff', borderWidth: 3 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '60%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#1a2421', font: { family: 'Noto Sans JP', size: 11 }, padding: 8, boxWidth: 10 } },
+          tooltip: {
+            backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10,
+            callbacks: { label: c => ` ${allKeys[c.dataIndex]}: ${c.parsed}名` }
+          }
+        }
+      }
+    });
+  }
+
+  empChartApply = makeDonut('empChartApply', empChartApply, applyData, applyTotal);
+  empChart = makeDonut('empChart', empChart, hireData, hireTotal);
+}
+
+// ============== 年代別 ==============
+function renderAgeChart(rows) {
+  const order = ['10代','20代','30代','40代','50代','60代','70代','80代'];
+  const apply = {}, hire = {};
+  order.forEach(o => { apply[o] = 0; hire[o] = 0; });
+  rows.forEach(r => {
+    const band = ageBand(r.age);
+    if (!band) return;
+    apply[band] = (apply[band]||0)+1;
+    if (classify(r).hire) hire[band] = (hire[band]||0)+1;
+  });
+  const labels = order.filter(o => apply[o] > 0);
+  const applyData = labels.map(l => apply[l]);
+  const hireData = labels.map(l => hire[l]);
+
+  const ctx = document.getElementById('ageChart');
+  if (ageChart) ageChart.destroy();
+  if (labels.length === 0) {
+    ctx.parentNode.innerHTML = `<div class="empty"><span class="icon">○</span>年代データがありません</div>`;
+    return;
+  }
+  ageChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '応募', data: applyData, backgroundColor: 'rgba(74, 144, 196, 0.7)', borderColor: '#4a90c4', borderWidth: 1, borderRadius: 4 },
+        { label: '採用', data: hireData, backgroundColor: 'rgba(30, 175, 117, 0.85)', borderColor: MINT, borderWidth: 1, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#5a6862', font: { family: 'Noto Sans JP', size: 11 }, boxWidth: 12 } },
+        tooltip: { backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10 },
+      },
+      scales: {
+        x: { ticks: { color: '#5a6862' }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: '#5a6862' }, grid: { color: '#e6ecea' } },
+      },
+    }
+  });
+}
+
+// ============== エリア別 ==============
+function renderArea(rows) {
+  const map = {};
+  rows.forEach(r => {
+    const a = extractArea(r.address);
+    if (!map[a]) map[a] = { apply:0, hire:0 };
+    map[a].apply++;
+    if (classify(r).hire) map[a].hire++;
+  });
+  const list = Object.entries(map).sort((a,b)=>b[1].apply-a[1].apply).slice(0, 12);
+  if (list.length === 0) {
+    document.getElementById('areaTable').innerHTML = '';
+    return;
+  }
+  const max = Math.max(...list.map(([_,v])=>v.apply), 1);
+  document.getElementById('areaTable').innerHTML = `
+    <thead><tr><th>エリア</th><th>応募</th><th>採用</th><th class="bar-cell">分布</th></tr></thead>
+    <tbody>
+    ${list.map(([a,v]) => {
+      const bar = (v.apply/max*100).toFixed(0);
+      return `<tr>
+        <td>${a}</td>
+        <td class="num">${v.apply}</td>
+        <td class="num">${v.hire}</td>
+        <td class="bar-cell"><div class="mini-bar"><div style="width:${bar}%"></div></div></td>
+      </tr>`;
+    }).join('')}
+    </tbody>`;
+}
+
+// ============== Flow: 応募 vs 希望 vs 採用 ==============
+function renderFlow(rows) {
+  const area = document.getElementById('flowArea');
+  if (hiredJobChart) { hiredJobChart.destroy(); hiredJobChart = null; }
+
+  if (state.flowTab === 'job') {
+    renderFlowJob(rows, area, /*hiredOnly=*/false);
+  } else if (state.flowTab === 'emp') {
+    renderFlowEmp(rows, area, /*hiredOnly=*/false);
+  } else if (state.flowTab === 'hired') {
+    renderFlowHired(rows, area);
+  }
+}
+
+// 応募職種 vs 希望職種（複数希望は分解、未設定は除外）
+function renderFlowJob(rows, area, hiredOnly) {
+  const filtered = hiredOnly ? rows.filter(r => (r.after_interview || '').includes('採用')) : rows;
+  const map = {};
+  filtered.forEach(r => {
+    const a = normalizeJob(r.job);
+    if (!a) return;
+    const desiredList = normalizeJobList(r.desired_job);
+    if (desiredList.length === 0) return;
+    desiredList.forEach(d => {
+      const key = a + '|||' + d;
+      map[key] = (map[key]||0)+1;
+    });
+  });
+  // diff判定：jobGroupKey が違う場合のみ「異なる」とみなす
+  // (例: 介護職 → 介護職／夜勤専従 は同じグループなので "応募 = 希望" 扱い)
+  const list = Object.entries(map)
+    .map(([k,v]) => {
+      const [a,d] = k.split('|||');
+      return {a, d, v, diff: jobGroupKey(a) !== jobGroupKey(d)};
+    })
+    .sort((x,y)=>y.v-x.v)
+    .slice(0, 20);
+  if (list.length === 0) {
+    area.innerHTML = `<div class="empty"><span class="icon">○</span>該当データがありません<div class="hint">希望職種が未入力の応募者は除外しています</div></div>`;
+    return;
+  }
+  area.innerHTML = `
+    <div class="flow-wrap">
+      ${list.map(item => `
+        <div class="flow-row ${item.diff ? 'diff' : ''}">
+          <div class="flow-cell">${item.a}</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-cell">${item.d}</div>
+          <div class="flow-arrow">　</div>
+          <div class="flow-cell" style="color:var(--text-faint); font-size:11px;">${item.diff ? '応募と希望が異なる' : '応募 = 希望'}</div>
+          <div class="flow-count">${item.v}件</div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-size:11px; color:var(--text-faint);">
+      ※「応募職種」は応募時点／「希望職種」は面談後に求職者と相談して決めた職種。<br>
+      ※ 表記ゆれ（管理栄養士・栄養士、ケアマネージャー等）は統一済み。「介護職」と「介護職／夜勤専従」のような働き方修飾違いは「同じ」とみなしています。希望職種が複数ある場合は行を分解、未入力は除外しています。
+    </div>`;
+}
+
+// 応募形態 vs 希望形態 vs 採用形態
+// hiredOnly=true なら採用者のみ (3列), false なら全応募者 (2列のみ採用は採用者のみ)
+function renderFlowEmp(rows, area, hiredOnly) {
+  if (hiredOnly) {
+    // 採用者のみ：3列 (応募→希望→採用)。希望が複数(セミコロン区切り)なら行展開。
+    const adopted = rows.filter(r => (r.after_interview || '').includes('採用'));
+    const map = {};
+    adopted.forEach(r => {
+      const a = normalizeEmp(r.employment);
+      const desiredList = normalizeEmpList(r.desired_emp);
+      const h = realEmp(r);
+      if (!a || !h) return;
+      // 希望が空ならスキップ（未設定除外）
+      if (desiredList.length === 0) return;
+      desiredList.forEach(d => {
+        const key = a + '|||' + d + '|||' + h;
+        map[key] = (map[key]||0)+1;
+      });
+    });
+    const list = Object.entries(map)
+      .map(([k,v]) => { const [a,d,h] = k.split('|||'); return {a,d,h,v}; })
+      .sort((x,y)=>y.v-x.v);
+    if (list.length === 0) {
+      area.innerHTML = `<div class="empty"><span class="icon">○</span>採用データがありません<div class="hint">希望雇用形態が未入力の採用者は除外しています</div></div>`;
+      return;
+    }
+    area.innerHTML = `
+      <div class="flow-wrap">
+        <div class="flow-row" style="background:transparent; font-size:10px; color:var(--text-faint); font-weight:700; text-transform:uppercase; padding-bottom:4px;">
+          <div>応募形態</div><div></div><div>希望形態</div><div></div><div>採用形態</div><div style="text-align:right;">件数</div>
+        </div>
+        ${list.map(item => {
+          const diff = item.h !== item.a;
+          return `
+          <div class="flow-row ${diff ? 'diff' : ''}">
+            <div class="flow-cell">${item.a}</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-cell">${item.d}</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-cell" style="font-weight:700; color:${diff ? 'var(--warn)' : 'var(--mint-600)'};">${item.h}</div>
+            <div class="flow-count">${item.v}件</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-size:11px; color:var(--text-faint);">
+        ※ 応募時の形態と実際に採用された形態が異なる場合をオレンジで表示。例：「正社員」応募 → 「パート」採用。<br>
+        ※ 表記ゆれ（派遣／派遣社員、パート（扶養内）／Wワークなど）は統一して集計しています。希望形態が複数ある場合は行を分解しています。
+      </div>`;
+  } else {
+    // 全応募者：2列 (応募→希望)。未設定は除外、複数希望は分解。
+    const map = {};
+    rows.forEach(r => {
+      const a = normalizeEmp(r.employment);
+      const desiredList = normalizeEmpList(r.desired_emp);
+      if (!a) return;
+      if (desiredList.length === 0) return;  // 希望未設定は除外
+      desiredList.forEach(d => {
+        const key = a + '|||' + d;
+        map[key] = (map[key]||0)+1;
+      });
+    });
+    const list = Object.entries(map)
+      .map(([k,v]) => { const [a,d] = k.split('|||'); return {a,d,v,diff:a!==d}; })
+      .sort((x,y)=>y.v-x.v);
+    if (list.length === 0) {
+      area.innerHTML = `<div class="empty"><span class="icon">○</span>該当データがありません<div class="hint">希望雇用形態が未入力の応募者は除外しています</div></div>`;
+      return;
+    }
+    area.innerHTML = `
+      <div class="flow-wrap">
+        ${list.map(item => `
+          <div class="flow-row ${item.diff ? 'diff' : ''}">
+            <div class="flow-cell">${item.a}</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-cell">${item.d}</div>
+            <div class="flow-arrow">　</div>
+            <div class="flow-cell" style="color:var(--text-faint); font-size:11px;">${item.diff ? '応募と希望が異なる' : '応募 = 希望'}</div>
+            <div class="flow-count">${item.v}件</div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-size:11px; color:var(--text-faint);">
+        ※「応募雇用形態」は応募時点／「希望雇用形態」は面談後に求職者と相談して決めた形態。違う場合はオレンジで表示。<br>
+        ※ 表記ゆれ（派遣／派遣社員、パート（扶養内）／Wワークなど）は統一して集計しています。希望形態が複数ある場合は行を分解、未入力は除外しています。
+      </div>`;
+  }
+}
+
+// 採用者分析: 採用された人の応募→希望→採用 と 属性分布
+function renderFlowHired(rows, area) {
+  const adopted = rows.filter(r => (r.after_interview || '').includes('採用'));
+  if (adopted.length === 0) {
+    area.innerHTML = `<div class="empty"><span class="icon">○</span>採用データがありません<div class="hint">フィルタ条件を緩めるか、別の期間をご確認ください</div></div>`;
+    return;
+  }
+
+  // 集計
+  const totalAdopt = adopted.length;
+  // 媒体・年代・エリアの分布
+  const mediaMap = {}, ageMap = {}, areaMap = {};
+  adopted.forEach(r => {
+    const m = r.media || '(未設定)';
+    mediaMap[m] = (mediaMap[m] || 0) + 1;
+    const band = ageBand(r.age);
+    if (band) ageMap[band] = (ageMap[band] || 0) + 1;
+    const a = extractArea(r.address);
+    areaMap[a] = (areaMap[a] || 0) + 1;
+  });
+
+  // 応募職種 → 希望職種（複数希望は分解、未設定は除外、表記ゆれ統一）
+  const jobMap = {};
+  adopted.forEach(r => {
+    const a = normalizeJob(r.job);
+    if (!a) return;
+    const desiredJobList = normalizeJobList(r.desired_job);
+    if (desiredJobList.length === 0) return;
+    desiredJobList.forEach(d => {
+      const key = a + '|||' + d;
+      jobMap[key] = (jobMap[key]||0)+1;
+    });
+  });
+  const jobList = Object.entries(jobMap)
+    .map(([k,v]) => {
+      const [a,d] = k.split('|||');
+      return {a, d, v, diff: jobGroupKey(a) !== jobGroupKey(d)};
+    })
+    .sort((x,y)=>y.v-x.v);
+
+  // 応募形態 → 希望形態 → 採用形態（正規化、複数希望分解、未設定除外）
+  const empMap = {};
+  adopted.forEach(r => {
+    const a = normalizeEmp(r.employment);
+    const desiredEmpList = normalizeEmpList(r.desired_emp);
+    const h = realEmp(r);
+    if (!a || !h) return;
+    if (desiredEmpList.length === 0) return;
+    desiredEmpList.forEach(d => {
+      const key = a + '|||' + d + '|||' + h;
+      empMap[key] = (empMap[key]||0)+1;
+    });
+  });
+  const empList = Object.entries(empMap)
+    .map(([k,v]) => { const [a,d,h] = k.split('|||'); return {a,d,h,v}; })
+    .sort((x,y)=>y.v-x.v);
+
+  // ソート用ユーティリティ
+  const sortMap = m => Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  const ageOrder = ['10代','20代','30代','40代','50代','60代','70代','80代'];
+  const ageList = ageOrder.filter(o => ageMap[o]).map(o => [o, ageMap[o]]);
+  const mediaList = sortMap(mediaMap);
+  const areaList = sortMap(areaMap).slice(0, 8);
+
+  area.innerHTML = `
+    <div class="hired-summary">
+      <div class="hired-headline">
+        <span class="big">${totalAdopt}</span><span class="unit">名の採用者を分析</span>
+      </div>
+    </div>
+
+    <div class="hired-grid">
+      <div class="hired-card">
+        <div class="hired-card-title">媒体別</div>
+        ${mediaList.map(([k,v]) => `
+          <div class="hired-bar-row">
+            <div class="hired-bar-label"><span class="media-dot" style="background:${MEDIA_COLORS[k] || '#7a8589'}"></span>${k}</div>
+            <div class="hired-bar-track"><div class="hired-bar-fill" style="width:${(v/totalAdopt*100).toFixed(0)}%; background:${MEDIA_COLORS[k] || '#7a8589'}"></div></div>
+            <div class="hired-bar-num">${v}<span class="pct">（${Math.round(v/totalAdopt*100)}%）</span></div>
+          </div>`).join('')}
+      </div>
+      <div class="hired-card">
+        <div class="hired-card-title">年代別</div>
+        ${ageList.length === 0 ? '<div class="empty" style="padding:14px 0;">年代データなし</div>' : ageList.map(([k,v]) => `
+          <div class="hired-bar-row">
+            <div class="hired-bar-label">${k}</div>
+            <div class="hired-bar-track"><div class="hired-bar-fill" style="width:${(v/totalAdopt*100).toFixed(0)}%; background:var(--mint-400)"></div></div>
+            <div class="hired-bar-num">${v}<span class="pct">（${Math.round(v/totalAdopt*100)}%）</span></div>
+          </div>`).join('')}
+      </div>
+      <div class="hired-card">
+        <div class="hired-card-title">エリア別 TOP</div>
+        ${areaList.map(([k,v]) => `
+          <div class="hired-bar-row">
+            <div class="hired-bar-label">${k}</div>
+            <div class="hired-bar-track"><div class="hired-bar-fill" style="width:${(v/totalAdopt*100).toFixed(0)}%; background:var(--mint-500)"></div></div>
+            <div class="hired-bar-num">${v}<span class="pct">（${Math.round(v/totalAdopt*100)}%）</span></div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="hired-flow-block">
+      <div class="hired-section-title">応募職種 → 希望職種</div>
+      <div class="flow-wrap">
+        ${jobList.map(item => `
+          <div class="flow-row ${item.diff ? 'diff' : ''}">
+            <div class="flow-cell">${item.a}</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-cell">${item.d}</div>
+            <div class="flow-arrow">　</div>
+            <div class="flow-cell" style="color:var(--text-faint); font-size:11px;">${item.diff ? '応募と希望が異なる' : '応募 = 希望'}</div>
+            <div class="flow-count">${item.v}件</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="hired-flow-block">
+      <div class="hired-section-title">応募形態 → 希望形態 → 採用形態</div>
+      <div class="flow-wrap">
+        <div class="flow-row" style="background:transparent; font-size:10px; color:var(--text-faint); font-weight:700; text-transform:uppercase; padding-bottom:4px;">
+          <div>応募形態</div><div></div><div>希望形態</div><div></div><div>採用形態</div><div style="text-align:right;">件数</div>
+        </div>
+        ${empList.map(item => {
+          const diff = item.h !== item.a;
+          return `
+          <div class="flow-row ${diff ? 'diff' : ''}">
+            <div class="flow-cell">${item.a}</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-cell">${item.d}</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-cell" style="font-weight:700; color:${diff ? 'var(--warn)' : 'var(--mint-600)'};">${item.h}</div>
+            <div class="flow-count">${item.v}件</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-size:11px; color:var(--text-faint);">
+        ※ 応募時と実際の採用形態が異なる場合をオレンジ表示。例：「正社員」応募 → 「パート」採用。
+      </div>
+    </div>
+  `;
+}
+
+// ============== Job Table ==============
+function renderJobTable(rows) {
+  const map = {};
+  rows.forEach(r => {
+    const j = normalizeJob(r.job) || '(未設定)';
+    if (!map[j]) map[j] = { apply:0, hire:0 };
+    map[j].apply++;
+    if (classify(r).hire) map[j].hire++;
+  });
+  const list = Object.entries(map).sort((a,b)=>b[1].apply-a[1].apply).slice(0, 15);
+  if (list.length === 0) {
+    document.getElementById('jobTable').innerHTML = '';
+    return;
+  }
+  const max = Math.max(...list.map(([_,v])=>v.apply), 1);
+  document.getElementById('jobTable').innerHTML = `
+    <thead><tr><th>応募職種</th><th>応募数</th><th>採用数</th><th>採用率</th><th class="bar-cell">応募構成比</th></tr></thead>
+    <tbody>
+    ${list.map(([j,v]) => {
+      const rate = v.apply ? Math.round(v.hire/v.apply*100) : 0;
+      return `<tr>
+        <td>${j}</td>
+        <td class="num">${v.apply}</td>
+        <td class="num">${v.hire}</td>
+        <td class="num"><span class="rate-pill">${rate}%</span></td>
+        <td class="bar-cell"><div class="mini-bar"><div style="width:${(v.apply/max*100).toFixed(0)}%"></div></div></td>
+      </tr>`;
+    }).join('')}
+    </tbody>`;
+}
+
+// ============== Render All ==============
+function renderAll() {
+  const rows = getFiltered();
+  renderKpi(rows);
+  renderFunnel(rows);
+  renderTrend(rows);
+  renderMediaTable(rows);
+  renderEmpChart(rows);
+  renderAgeChart(rows);
+  renderArea(rows);
+  renderFlow(rows);
+  renderJobTable(rows);
+
+  const months = [...new Set(allData.map(r=>r.ym))].sort();
+  if (months.length) {
+    document.getElementById('dataRange').textContent = `${months[0]} 〜 ${months[months.length-1]}（全 ${allData.length.toLocaleString()} 件）`;
+  }
+}
+
+// ============== Filter UI ==============
+function rebuildFilters() {
+  const periods = [...new Set(allData.map(r=>r.ym))].sort();
+  const selFrom = document.getElementById('periodFrom');
+  const selTo = document.getElementById('periodTo');
+  const opts = periods.map(p => `<option value="${p}">${p}</option>`).join('');
+  selFrom.innerHTML = opts;
+  selTo.innerHTML = opts;
+  // 範囲初期値：全期間
+  if (!state.periodFrom || !periods.includes(state.periodFrom)) state.periodFrom = periods[0];
+  if (!state.periodTo || !periods.includes(state.periodTo)) state.periodTo = periods[periods.length - 1];
+  selFrom.value = state.periodFrom;
+  selTo.value = state.periodTo;
+
+  const medias = [...new Set(allData.map(r=>r.media || '(未設定)'))];
+  document.getElementById('mediaChips').innerHTML = `<button class="chip ${state.media.has('all')?'active':''}" data-v="all">すべて</button>` +
+    medias.map(m => `<button class="chip ${state.media.has(m)?'active':''}" data-v="${m}">${m}</button>`).join('');
+
+  const emps = [...new Set(allData.map(r=>r.employment || '(未設定)'))];
+  document.getElementById('empChips').innerHTML = `<button class="chip ${state.emp.has('all')?'active':''}" data-v="all">すべて</button>` +
+    emps.map(e => `<button class="chip ${state.emp.has(e)?'active':''}" data-v="${e}">${e}</button>`).join('');
+}
+
+function setupFilterEvents() {
+  document.getElementById('periodFrom').addEventListener('change', e => {
+    state.periodFrom = e.target.value;
+    // From > To になったら To も合わせる
+    if (state.periodTo && state.periodFrom > state.periodTo) {
+      state.periodTo = state.periodFrom;
+      document.getElementById('periodTo').value = state.periodTo;
+    }
+    renderAll();
+  });
+  document.getElementById('periodTo').addEventListener('change', e => {
+    state.periodTo = e.target.value;
+    if (state.periodFrom && state.periodTo < state.periodFrom) {
+      state.periodFrom = state.periodTo;
+      document.getElementById('periodFrom').value = state.periodFrom;
+    }
+    renderAll();
+  });
+  document.getElementById('mediaChips').addEventListener('click', e => {
+    if (!e.target.classList.contains('chip')) return;
+    handleChipClick(state.media, e.target.dataset.v, 'mediaChips');
+  });
+  document.getElementById('empChips').addEventListener('click', e => {
+    if (!e.target.classList.contains('chip')) return;
+    handleChipClick(state.emp, e.target.dataset.v, 'empChips');
+  });
+}
+function handleChipClick(stateSet, val, containerId) {
+  if (val === 'all') {
+    stateSet.clear();
+    stateSet.add('all');
+  } else {
+    stateSet.delete('all');
+    if (stateSet.has(val)) stateSet.delete(val); else stateSet.add(val);
+    if (stateSet.size === 0) stateSet.add('all');
+  }
+  document.querySelectorAll('#' + containerId + ' .chip').forEach(c => {
+    c.classList.toggle('active', stateSet.has(c.dataset.v));
+  });
+  renderAll();
+}
+
+// ============== Tabs ==============
+function setupTabs() {
+  document.querySelectorAll('.tab[data-tab]').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      state.trendTab = t.dataset.tab;
+      renderTrend(getFiltered());
+    });
+  });
+  document.querySelectorAll('.tab[data-flowtab]').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab[data-flowtab]').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      state.flowTab = t.dataset.flowtab;
+      renderFlow(getFiltered());
+    });
+  });
+}
+
+// ============== CSV Upload ==============
+function parseCsv(text, fname) {
+  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+  if (parsed.errors.length > 0) console.warn('CSV warnings:', parsed.errors);
+  const ymFromFname = inferYmFromFilename(fname);
+  return parsed.data.map(r => {
+    let ym = ymFromFname;
+    if (!ym && r['応募日①']) {
+      const d = String(r['応募日①']).match(/(\d{4})[-/](\d{1,2})/);
+      if (d) ym = `${d[1]}-${String(d[2]).padStart(2,'0')}`;
+    }
+    const ageRaw = parseInt(r['年齢']) || 0;
+    return {
+      ym: ym || 'unknown',
+      status: r['対応状況'] || '',
+      after_meeting: r['面談後状況'] || '',
+      after_interview: r['面接後'] || '',
+      media: r['募集媒体'] || '',
+      employment: r['雇用形態①'] || '',
+      job: r['応募職種①'] || '',
+      desired_job: r['希望職種'] || '',
+      desired_emp: r['希望雇用形態'] || '',
+      address: r['住所'] || '',
+      age: ageRaw,
+      company: r['応募先①'] || '',
+      fee: parseInt(r['紹介手数料']) || 0,
+    };
+  }).filter(r => r.status || r.media);
+}
+function inferYmFromFilename(fname) {
+  const m1 = fname.match(/(\d{4})[_\-年]?(\d{1,2})/);
+  if (m1) return `${m1[1]}-${String(m1[2]).padStart(2,'0')}`;
+  return null;
+}
+function readFile(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const buf = e.target.result;
+      let text;
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+      } catch {
+        text = new TextDecoder('shift-jis').decode(buf);
+      }
+      if (!/データID|応募日/.test(text)) {
+        text = new TextDecoder('shift-jis').decode(buf);
+      }
+      res({ text, name: file.name });
+    };
+    reader.onerror = rej;
+    reader.readAsArrayBuffer(file);
+  });
+}
+async function handleFiles(files) {
+  const arr = Array.from(files);
+  const all = [];
+  for (const f of arr) {
+    try {
+      const { text, name } = await readFile(f);
+      const rows = parseCsv(text, name);
+      all.push(...rows);
+    } catch(e) {
+      alert(`${f.name} の読み込みに失敗しました: ${e.message}`);
+    }
+  }
+  if (all.length === 0) {
+    alert('読み込めるレコードがありませんでした。ZOHO形式のCSVをご確認ください。');
+    return;
+  }
+  if (dataSource === 'sample') {
+    allData = all;
+  } else {
+    allData = allData.concat(all);
+  }
+  dataSource = 'uploaded';
+  const monthCount = [...new Set(allData.map(r=>r.ym))].length;
+  document.getElementById('uploadStatus').innerHTML =
+    `<span class="ok">●</span> アップロード済 ${allData.length.toLocaleString()} 件（${monthCount}ヶ月分）`;
+  state.periodFrom = null;
+  state.periodTo = null;
+  state.media = new Set(['all']);
+  state.emp = new Set(['all']);
+  rebuildFilters();
+  renderAll();
+}
+
+function setupUpload() {
+  const dz = document.getElementById('dropZone');
+  const input = document.getElementById('csvInput');
+  input.addEventListener('change', e => handleFiles(e.target.files));
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); dz.classList.add('dragover');
+  }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); dz.classList.remove('dragover');
+  }));
+  dz.addEventListener('drop', e => {
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    allData = SEED_DATA.slice();
+    dataSource = 'sample';
+    document.getElementById('uploadStatus').textContent = 'サンプルデータ（2025年11月〜2026年3月／329件）を表示中';
+    state.periodFrom = null; state.periodTo = null; state.media = new Set(['all']); state.emp = new Set(['all']);
+    rebuildFilters();
+    renderAll();
+  });
+}
+
+// ============== Init ==============
+rebuildFilters();
+setupFilterEvents();
+setupTabs();
+setupUpload();
+renderAll();
+</script>
+</body>
+</html>
