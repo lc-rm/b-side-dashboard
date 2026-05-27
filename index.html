@@ -829,6 +829,27 @@ function renderFunnel(rows) {
   }).join('');
 }
 
+// ============== Chart empty-state helper ==============
+// canvas は破壊せず、隣にempty メッセージを差し挟む / 戻す
+function setChartEmpty(canvas, isEmpty, message, hint) {
+  if (!canvas) return;
+  const parent = canvas.parentNode;
+  let emptyEl = parent.querySelector('.chart-empty-overlay');
+  if (isEmpty) {
+    canvas.style.display = 'none';
+    if (!emptyEl) {
+      emptyEl = document.createElement('div');
+      emptyEl.className = 'empty chart-empty-overlay';
+      parent.appendChild(emptyEl);
+    }
+    emptyEl.innerHTML = `<span class="icon">○</span>${message}${hint ? `<div class="hint">${hint}</div>` : ''}`;
+    emptyEl.style.display = '';
+  } else {
+    canvas.style.display = '';
+    if (emptyEl) emptyEl.style.display = 'none';
+  }
+}
+
 // ============== Trend ==============
 function renderTrend(rows) {
   const months = [...new Set(allData.map(r => r.ym))].sort();
@@ -855,6 +876,7 @@ function renderTrend(rows) {
   // ========== チャートA: 応募(棒) + 採用(棒) + 採用率(折れ線) ==========
   const ctxA = document.getElementById('trendApplyHireChart');
   if (trendApplyHireChart) trendApplyHireChart.destroy();
+  setChartEmpty(ctxA, false);
   trendApplyHireChart = new Chart(ctxA, {
     data: {
       labels: months,
@@ -916,9 +938,10 @@ function renderTrend(rows) {
   if (trendRevenueChart) trendRevenueChart.destroy();
   const hasRevenue = revenueData.some(v => v > 0);
   if (!hasRevenue) {
-    ctxB.parentNode.innerHTML = `<div class="empty"><span class="icon">○</span>売上データがありません<div class="hint">紹介手数料が入力された採用データが必要です</div></div>`;
+    setChartEmpty(ctxB, true, '売上データがありません', '紹介手数料が入力された採用データが必要です');
     return;
   }
+  setChartEmpty(ctxB, false);
   trendRevenueChart = new Chart(ctxB, {
     data: {
       labels: months,
@@ -1034,16 +1057,17 @@ function renderEmpChart(rows) {
   allKeys.sort((a,b) => ((hireMap[b]||0)+(applyMap[b]||0)) - ((hireMap[a]||0)+(applyMap[a]||0)));
 
   // 採用データが0の場合はメッセージ
+  const ctxApply = document.getElementById('empChartApply');
+  const ctxHire = document.getElementById('empChart');
   if (allKeys.length === 0 || adopted.length === 0) {
-    const card = document.getElementById('empChart').closest('.card');
-    if (card) {
-      const pair = card.querySelector('.donut-pair');
-      if (pair) pair.innerHTML = `<div class="empty" style="grid-column: 1 / -1;"><span class="icon">○</span>採用データがありません<div class="hint">フィルタを変更してお試しください</div></div>`;
-    }
     if (empChart) { empChart.destroy(); empChart = null; }
     if (empChartApply) { empChartApply.destroy(); empChartApply = null; }
+    setChartEmpty(ctxApply, true, '採用データなし');
+    setChartEmpty(ctxHire, true, '採用データなし', 'フィルタを変更してお試しください');
     return;
   }
+  setChartEmpty(ctxApply, false);
+  setChartEmpty(ctxHire, false);
 
   const colors = allKeys.map(l => EMP_COLORS[l] || '#7a8589');
   const applyData = allKeys.map(k => applyMap[k] || 0);
@@ -1589,9 +1613,10 @@ function renderRevenueStack(rows) {
   const ctx = document.getElementById('revenueStackChart');
   if (revenueStackChart) revenueStackChart.destroy();
   if (datasets.length === 0 || datasets.every(d => d.data.every(v => v === 0))) {
-    ctx.parentNode.innerHTML = `<div class="empty"><span class="icon">○</span>売上データがありません<div class="hint">紹介手数料が入力された採用データが必要です</div></div>`;
+    setChartEmpty(ctx, true, '売上データがありません', '紹介手数料が入力された採用データが必要です');
     return;
   }
+  setChartEmpty(ctx, false);
   revenueStackChart = new Chart(ctx, {
     type: 'bar',
     data: { labels: months, datasets },
@@ -1647,9 +1672,10 @@ function renderRevenueByEmp(rows) {
   const ctx = document.getElementById('revenueByEmpChart');
   if (revenueByEmpChart) revenueByEmpChart.destroy();
   if (entries.length === 0 || revenueData.every(v => v === 0)) {
-    ctx.parentNode.innerHTML = `<div class="empty"><span class="icon">○</span>売上データがありません</div>`;
+    setChartEmpty(ctx, true, '売上データがありません');
     return;
   }
+  setChartEmpty(ctx, false);
   revenueByEmpChart = new Chart(ctx, {
     type: 'bar',
     data: {
