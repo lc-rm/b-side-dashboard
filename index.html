@@ -565,7 +565,7 @@ body.auth-locked .app { display: none; }
   <div class="page-pane" data-pane="monthly" style="display:none;">
     <div class="section">
       <div class="section-title"><span class="marker"></span>MONTHLY<span class="ja">月別の推移・比較（項目別カード）</span></div>
-      <div style="font-size:11px; color:var(--text-faint); margin:-4px 0 12px 4px;">※ 数字が大きいセルほど色が濃くなります（主要指標は行ごと／区分表は表全体で濃淡）。採用単価は「高い＝濃い」表示です。</div>
+      <div style="font-size:11px; color:var(--text-faint); margin:-4px 0 12px 4px;">※ 色は数字の大小。主要指標は各行（指標）を横（月）で比較し、最も高い月が最も濃く・最も低い月がほぼ白（同値は同色）。区分表は表全体で濃淡。採用単価は「高い＝濃い」。</div>
       <div id="monthlyEmpty" class="empty" style="display:none;"><span class="icon">○</span>データがありません<div class="hint">CSVをアップロードしてください</div></div>
       <div id="monthlyCards">
         <div>
@@ -2378,14 +2378,27 @@ function moHeat(v, min, max) {
   return ` style="background:rgba(30,175,117,${a})"`;
 }
 
-// 表を組み立て。rows: [{label, dot?, colorMax, cells:[{v, html}], total:html}], totalRow任意(cells:[{html}])
+// 行内の順位で背景色（同値は同色）。低い→薄い、高い→濃い。0/空は色なし。
+function moRankBg(nums) {
+  const uniq = [...new Set(nums.filter(v => v > 0))].sort((a, b) => a - b);
+  const n = uniq.length;
+  return nums.map(v => {
+    if (!(v > 0)) return '';
+    const r = uniq.indexOf(v);
+    const t = n > 1 ? r / (n - 1) : 0.5;
+    const a = (0.06 + t * 0.42).toFixed(3);
+    return ` style="background:rgba(30,175,117,${a})"`;
+  });
+}
+
+// 表を組み立て。rows: [{label, dot?, colorMax, cells:[{v, html, bg?}], total:html}], totalRow任意(cells:[{html}])
 function moRenderTbl(catLabel, months, rows, totalRow) {
   let h = `<thead><tr><th>${escapeHtml(catLabel)}</th>`;
   months.forEach(m => h += `<th class="num">${m}</th>`);
   h += `<th class="num">合計</th></tr></thead><tbody>`;
   rows.forEach(r => {
     h += `<tr><td>${r.dot ? `<span class="media-dot" style="background:${r.dot}"></span>` : ''}${escapeHtml(r.label)}</td>`;
-    r.cells.forEach(c => h += `<td class="num"${moHeat(c.v, r.colorMin || 0, r.colorMax)}>${c.html}</td>`);
+    r.cells.forEach(c => h += `<td class="num"${c.bg != null ? c.bg : moHeat(c.v, r.colorMin || 0, r.colorMax)}>${c.html}</td>`);
     h += `<td class="num"><b>${r.total}</b></td></tr>`;
   });
   h += `</tbody>`;
@@ -2465,8 +2478,6 @@ function renderMonthly() {
   // 主要指標（行ごとにヒートマップ）
   const sum = k => months.reduce((s, m) => s + M[m][k], 0);
   const totApply = sum('apply'), totHire = sum('hire'), totFee = sum('fee');
-  const mx = a => Math.max(0, ...a);
-  const pmin = a => { const p = a.filter(x => x > 0); return p.length ? Math.min(...p) : 0; };
   const rApply = months.map(m => M[m].apply);
   const rContact = months.map(m => M[m].contact);
   const rMeeting = months.map(m => M[m].meeting);
@@ -2475,15 +2486,20 @@ function renderMonthly() {
   const rRate = months.map(m => M[m].apply ? M[m].hire / M[m].apply * 100 : 0);
   const rFee = months.map(m => M[m].fee);
   const rCpa = months.map(m => M[m].hire ? M[m].fee / M[m].hire : 0);
+  // 各指標は行内の順位で色付け（1行の中で最も高い月だけが最濃）
+  const krow = (label, nums, fmt, total) => {
+    const bgs = moRankBg(nums);
+    return { label, cells: nums.map((v, i) => ({ v, html: fmt(v, i), bg: bgs[i] })), total };
+  };
   const kpiRows = [
-    { label: '応募', colorMin: pmin(rApply), colorMax: mx(rApply), cells: rApply.map(v => ({ v, html: moNum(v) })), total: moNum(totApply) },
-    { label: 'コンタクト', colorMin: pmin(rContact), colorMax: mx(rContact), cells: rContact.map(v => ({ v, html: moNum(v) })), total: moNum(sum('contact')) },
-    { label: '面談実施', colorMin: pmin(rMeeting), colorMax: mx(rMeeting), cells: rMeeting.map(v => ({ v, html: moNum(v) })), total: moNum(sum('meeting')) },
-    { label: '面接実施', colorMin: pmin(rInterview), colorMax: mx(rInterview), cells: rInterview.map(v => ({ v, html: moNum(v) })), total: moNum(sum('interview')) },
-    { label: '採用', colorMin: pmin(rHire), colorMax: mx(rHire), cells: rHire.map(v => ({ v, html: moNum(v) })), total: moNum(totHire) },
-    { label: '採用率', colorMin: pmin(rRate), colorMax: mx(rRate), cells: months.map((m, i) => ({ v: rRate[i], html: moPct(rRate[i], M[m].apply > 0) })), total: moPct(totApply ? totHire / totApply * 100 : 0, totApply > 0) },
-    { label: '採用費用', colorMin: pmin(rFee), colorMax: mx(rFee), cells: rFee.map(v => ({ v, html: moYen(v) })), total: moYen(totFee) },
-    { label: '採用単価', colorMin: pmin(rCpa), colorMax: mx(rCpa), cells: rCpa.map(v => ({ v, html: moYen(v) })), total: moYen(totHire ? totFee / totHire : 0) },
+    krow('応募', rApply, v => moNum(v), moNum(totApply)),
+    krow('コンタクト', rContact, v => moNum(v), moNum(sum('contact'))),
+    krow('面談実施', rMeeting, v => moNum(v), moNum(sum('meeting'))),
+    krow('面接実施', rInterview, v => moNum(v), moNum(sum('interview'))),
+    krow('採用', rHire, v => moNum(v), moNum(totHire)),
+    krow('採用率', rRate, (v, i) => moPct(v, M[months[i]].apply > 0), moPct(totApply ? totHire / totApply * 100 : 0, totApply > 0)),
+    krow('採用費用', rFee, v => moYen(v), moYen(totFee)),
+    krow('採用単価', rCpa, v => moYen(v), moYen(totHire ? totFee / totHire : 0)),
   ];
   document.getElementById('moKpiTbl').innerHTML = moRenderTbl('指標', months, kpiRows);
 
