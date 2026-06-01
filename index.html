@@ -2365,6 +2365,7 @@ function rebuildFromSnapshot(snap) {
 function monthsSorted() { return [...new Set(allData.map(r => r.ym))].sort(); }
 function setupMonthly() { /* コントロールなし：表は自動描画 */ }
 
+function moYmLabel(ym) { const p = String(ym).split('-'); return p[1] ? `${p[0]}年${parseInt(p[1], 10)}月` : ym; }
 function moNum(v) { return v ? fmtNum(v) : '<span style="color:var(--text-faint)">-</span>'; }
 function moYen(v) { return v ? '¥' + Math.round(v).toLocaleString('ja-JP') : '<span style="color:var(--text-faint)">-</span>'; }
 function moPct(v, has) { return has ? Math.round(v) + '%' : '<span style="color:var(--text-faint)">-</span>'; }
@@ -2401,7 +2402,7 @@ function moRenderTransposed(months, cols, opts) {
   if (hasTotalCol) h += `<th class="num">合計</th>`;
   h += `</tr></thead><tbody>`;
   months.forEach((m, mi) => {
-    h += `<tr><td><b>${m}</b></td>`;
+    h += `<tr><td style="white-space:nowrap;"><b>${moYmLabel(m)}</b></td>`;
     let rowSum = 0;
     cols.forEach(c => {
       const bg = (c.bg && c.bg[mi]) || '';
