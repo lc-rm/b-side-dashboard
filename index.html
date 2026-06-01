@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <style>
 :root {
   --mint-50: #f0fbf7;
@@ -330,9 +332,70 @@ input[type=file] { display: none; }
   .flow-row { grid-template-columns: 1fr auto 1fr; font-size: 11px; }
   .flow-row .flow-cell:nth-child(5), .flow-row .flow-arrow:nth-child(4), .flow-row .flow-count { display: none; }
 }
+
+/* ===== Auth Gate ===== */
+body.auth-locked { overflow: hidden; }
+body.auth-locked .app { display: none; }
+.auth-gate {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(at 100% 0%, rgba(110,220,177,0.18) 0, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(110,220,177,0.12) 0, transparent 50%),
+    #f4faf7;
+  padding: 24px;
+}
+.auth-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(13,90,63,0.12);
+  padding: 36px 32px; width: 100%; max-width: 380px; text-align: center;
+}
+.auth-logo { font-family: 'Manrope', sans-serif; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; }
+.auth-logo::before { content: ''; display: inline-block; width: 4px; height: 18px; background: var(--mint-500); margin-right: 10px; vertical-align: -2px; border-radius: 2px; }
+.auth-sub { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+.auth-loading { margin-top: 28px; font-size: 13px; color: var(--text-dim); }
+.auth-form { margin-top: 22px; text-align: left; }
+.auth-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-faint); margin: 14px 0 5px; }
+.auth-input {
+  width: 100%; box-sizing: border-box; background: var(--bg);
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  padding: 10px 12px; font-family: inherit; font-size: 14px; color: var(--text);
+}
+.auth-input:focus { outline: none; border-color: var(--mint-400); box-shadow: 0 0 0 3px var(--mint-100); }
+.auth-btn {
+  width: 100%; margin-top: 22px; background: var(--mint-500); color: #fff;
+  border: 0; border-radius: 8px; padding: 11px; font-family: inherit;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s;
+}
+.auth-btn:hover { background: var(--mint-600); }
+.auth-btn:disabled { background: var(--mint-300); cursor: default; }
+.auth-error { margin-top: 14px; font-size: 12px; color: var(--danger); min-height: 16px; text-align: center; }
+.auth-logout {
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border-strong);
+  padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 11px;
+  font-family: inherit; font-weight: 600; margin-top: 8px;
+}
+.auth-logout:hover { color: var(--mint-600); border-color: var(--mint-300); background: var(--mint-50); }
 </style>
 </head>
-<body>
+<body class="auth-locked">
+
+<div id="authGate" class="auth-gate">
+  <div class="auth-card">
+    <div class="auth-logo">実績分析ダッシュボード</div>
+    <div class="auth-sub">ビイサイドプランニング様｜介護事業部</div>
+    <div id="authLoading" class="auth-loading">認証状態を確認中…</div>
+    <form id="authForm" class="auth-form" style="display:none;">
+      <label class="auth-label" for="authId">ID</label>
+      <input type="text" id="authId" class="auth-input" autocomplete="username" required>
+      <label class="auth-label" for="authPassword">パスワード</label>
+      <input type="password" id="authPassword" class="auth-input" autocomplete="current-password" required>
+      <button type="submit" class="auth-btn" id="authSubmit">ログイン</button>
+      <div id="authError" class="auth-error"></div>
+    </form>
+  </div>
+</div>
+
 <div class="app">
 
   <header class="header">
@@ -343,6 +406,7 @@ input[type=file] { display: none; }
     <div class="header-right">
       <div class="label">DATA RANGE</div>
       <div class="value" id="dataRange">—</div>
+      <button id="logoutBtn" class="auth-logout" style="display:none;">ログアウト</button>
     </div>
   </header>
 
@@ -2157,18 +2221,118 @@ function setupUpload() {
 }
 
 // ============== Init ==============
-// SEED_DATAが空ならアップロード待ち状態にする
-if (allData.length === 0) {
-  dataSource = 'empty';
-  document.getElementById('uploadStatus').innerHTML = '<span style="color:var(--text-faint);">●</span> データが読み込まれていません — CSVをアップロードしてください';
+// 認証が通ってから一度だけ実行する。SEED_DATAが空ならアップロード待ち状態にする
+let __dashboardBooted = false;
+function bootDashboard() {
+  if (__dashboardBooted) return;
+  __dashboardBooted = true;
+  if (allData.length === 0) {
+    dataSource = 'empty';
+    document.getElementById('uploadStatus').innerHTML = '<span style="color:var(--text-faint);">●</span> データが読み込まれていません — CSVをアップロードしてください';
+  }
+  rebuildFilters();
+  setupFilterEvents();
+  setupTabs();
+  setupPivotControls();
+  setupAdminControls();
+  setupUpload();
+  renderAll();
 }
-rebuildFilters();
-setupFilterEvents();
-setupTabs();
-setupPivotControls();
-setupAdminControls();
-setupUpload();
-renderAll();
+</script>
+
+<script>
+// ============== 認証 (Firebase Authentication) ==============
+// ▼▼▼【1】このダッシュボード用のFirebaseウェブアプリ設定に置き換えてください ▼▼▼
+// ※ recruit-core とは別の（このダッシュボード専用の）Firebaseプロジェクトを使ってください。
+// Firebaseコンソール → プロジェクトの設定 → 全般 → マイアプリ → ウェブアプリ で
+// 表示される firebaseConfig をまるごと貼り付け（4つとも同じプロジェクトの値です）。
+// （ここに入る値は公開されても問題ない識別子です。Admin SDKの鍵は絶対に貼らないでください）
+const firebaseConfig = {
+  apiKey: "AIzaSyD7o2zo2hzcIqw6OxQVH0PxxVceM5N-Nik",
+  authDomain: "biside-analytics.firebaseapp.com",
+  projectId: "biside-analytics",
+  messagingSenderId: "1066484415281",
+  appId: "1:1066484415281:web:21b19997d450c0d5d40e10",
+};
+
+// ▼▼▼【2】ログインID用の固定ドメイン ▼▼▼
+// 入力されたID（例: "biside"）の後ろにこのドメインを自動で付けてFirebaseのメール扱いにします。
+// → Firebaseコンソールでは「<ID>@dashboard.local」の形式でアカウントを1つ作成してください。
+//   利用者はアプリ上ではID（"@"より前）だけ入力すればOKです。
+const LOGIN_ID_DOMAIN = 'dashboard.local';
+// ▲▲▲ 設定ここまで ▲▲▲
+
+(function setupAuth() {
+  const authGate = document.getElementById('authGate');
+  const authForm = document.getElementById('authForm');
+  const authLoading = document.getElementById('authLoading');
+  const authError = document.getElementById('authError');
+  const authSubmit = document.getElementById('authSubmit');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  function idToEmail(id) {
+    return id.toLowerCase() + '@' + LOGIN_ID_DOMAIN;
+  }
+  function showLogin(msg) {
+    document.body.classList.add('auth-locked');
+    authGate.style.display = 'flex';
+    authLoading.style.display = 'none';
+    authForm.style.display = '';
+    logoutBtn.style.display = 'none';
+    authError.textContent = msg || '';
+  }
+  function unlockApp() {
+    document.body.classList.remove('auth-locked');
+    authGate.style.display = 'none';
+    logoutBtn.style.display = '';
+    bootDashboard();
+  }
+
+  let firebaseReady = false;
+  try {
+    firebase.initializeApp(firebaseConfig);
+    firebaseReady = true;
+  } catch (e) {
+    authLoading.textContent = 'Firebaseの設定が正しくありません。firebaseConfig を確認してください。';
+  }
+  if (!firebaseReady) return;
+
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+      unlockApp();
+    } else {
+      showLogin('');
+    }
+  });
+
+  authForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const id = document.getElementById('authId').value.trim();
+    const password = document.getElementById('authPassword').value;
+    authError.textContent = '';
+    if (!id) {
+      authError.textContent = 'IDを入力してください。';
+      return;
+    }
+    authSubmit.disabled = true;
+    firebase.auth().signInWithEmailAndPassword(idToEmail(id), password)
+      .catch(err => {
+        const map = {
+          'auth/invalid-email': 'IDの形式が正しくありません。',
+          'auth/user-not-found': 'IDが見つかりません。',
+          'auth/wrong-password': 'パスワードが違います。',
+          'auth/invalid-credential': 'IDまたはパスワードが違います。',
+          'auth/too-many-requests': '試行回数が多すぎます。しばらくしてからお試しください。',
+        };
+        authError.textContent = map[err.code] || ('ログインに失敗しました（' + err.code + '）');
+      })
+      .finally(() => { authSubmit.disabled = false; });
+  });
+
+  logoutBtn.addEventListener('click', () => {
+    firebase.auth().signOut().then(() => location.reload());
+  });
+})();
 </script>
 </body>
 </html>
