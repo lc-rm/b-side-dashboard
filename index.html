@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 :root {
   --mint-50: #f0fbf7;
@@ -376,6 +377,24 @@ body.auth-locked .app { display: none; }
   font-family: inherit; font-weight: 600; margin-top: 8px;
 }
 .auth-logout:hover { color: var(--mint-600); border-color: var(--mint-300); background: var(--mint-50); }
+
+/* ===== Monthly tab ===== */
+.mo-up { color: var(--mint-600); font-weight: 700; font-family: 'Manrope', sans-serif; }
+.mo-down { color: var(--danger); font-weight: 700; font-family: 'Manrope', sans-serif; }
+.mo-flat { color: var(--text-faint); font-weight: 600; }
+.kpi .delta { font-size: 11px; margin-top: 4px; }
+.mo-headline { padding: 16px 20px; background: linear-gradient(135deg, var(--mint-50) 0%, var(--bg-tint) 100%); border-radius: 12px; border-left: 4px solid var(--mint-500); margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 28px; align-items: baseline; }
+.mo-headline .mo-month { font-family: 'Manrope', sans-serif; font-size: 22px; font-weight: 800; color: var(--mint-700); letter-spacing: -0.5px; }
+.mo-headline .mo-stat { font-size: 12px; color: var(--text-dim); }
+.mo-headline .mo-stat b { font-family: 'Manrope', sans-serif; font-size: 18px; color: var(--text); margin: 0 3px; font-weight: 700; }
+.mo-bars { display: flex; flex-direction: column; gap: 7px; }
+.mo-bar-row { display: grid; grid-template-columns: 120px 1fr 110px; gap: 10px; align-items: center; font-size: 12px; }
+.mo-bar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-weight: 500; }
+.mo-bar-track { height: 10px; background: var(--bg-tint); border-radius: 5px; overflow: hidden; }
+.mo-bar-fill { height: 100%; border-radius: 5px; background: var(--mint-400); transition: width 0.5s; }
+.mo-bar-num { text-align: right; font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 13px; color: var(--text); }
+.mo-bar-num .sub { color: var(--text-faint); font-weight: 500; font-size: 10px; margin-left: 4px; }
+@media (max-width: 700px) { .mo-bar-row { grid-template-columns: 88px 1fr 90px; } }
 </style>
 </head>
 <body class="auth-locked">
@@ -426,6 +445,10 @@ body.auth-locked .app { display: none; }
     <button class="page-tab active" data-pagetab="dashboard">
       <span class="page-tab-icon">▦</span>
       ダッシュボード
+    </button>
+    <button class="page-tab" data-pagetab="monthly">
+      <span class="page-tab-icon">▤</span>
+      月別分析
     </button>
     <button class="page-tab" data-pagetab="crosstab">
       <span class="page-tab-icon">⊞</span>
@@ -539,6 +562,23 @@ body.auth-locked .app { display: none; }
 
   </div><!-- /page-pane dashboard -->
 
+  <div class="page-pane" data-pane="monthly" style="display:none;">
+    <div class="filter-bar">
+      <div class="filter-group">
+        <label>対象月</label>
+        <select id="monthlySel"></select>
+      </div>
+      <div class="filter-group">
+        <button class="chip" id="monthlyPrev" title="前の月">◀ 前月</button>
+        <button class="chip" id="monthlyNext" title="次の月">翌月 ▶</button>
+      </div>
+      <div class="filter-group" style="margin-left:auto;">
+        <span id="monthlyCompare" style="font-size:11px; color:var(--text-dim);"></span>
+      </div>
+    </div>
+    <div id="monthlyArea"></div>
+  </div><!-- /page-pane monthly -->
+
   <div class="page-pane" data-pane="crosstab" style="display:none;">
   <div class="filter-bar">
     <div class="filter-group">
@@ -612,7 +652,7 @@ body.auth-locked .app { display: none; }
   </div><!-- /page-pane admin -->
 
   <div class="footer">
-    <span>Powered by Link Core</span> ／ ZOHO応募者データをブラウザ内で集計（データは外部送信されません）
+    <span>Powered by Link Core</span> ／ ZOHO応募者データを集計（ログインユーザー間でFirebaseに安全に同期保存）
   </div>
 </div>
 
@@ -637,7 +677,11 @@ const state = {
   trendTab: 'apply',  // (deprecated, kept for backward compat)
   flowTab: 'job',
   pageTab: 'dashboard',
+  monthlySel: null,  // 月別分析タブの対象月 'YYYY-MM'
 };
+// Firestore（クラウド共有）
+let db = null;
+let cloudReady = false;
 let trendApplyHireChart = null, trendRevenueChart = null, empChart = null, empChartApply = null, hiredJobChart = null, revenueStackChart = null, revenueByEmpChart = null;
 // ピボット表の展開状態管理: 'media|emp' をキー、true=展開
 const pivotExpanded = {};
@@ -1840,6 +1884,8 @@ function renderAll() {
   renderFlow(rows);
   renderJobTable(rows);
   renderAdmin();
+  buildMonthlySelect();
+  if (state.pageTab === 'monthly') renderMonthly();
 
   const months = [...new Set(allData.map(r=>r.ym))].sort();
   if (months.length) {
@@ -2027,6 +2073,9 @@ function setupTabs() {
       if (state.pageTab === 'admin') {
         renderAdmin();
       }
+      if (state.pageTab === 'monthly') {
+        renderMonthly();
+      }
     });
   });
   document.querySelectorAll('.tab[data-flowtab]').forEach(t => {
@@ -2116,47 +2165,52 @@ function readFile(file) {
 async function handleFiles(files) {
   const arr = Array.from(files);
   let totalNew = 0;
+  const tooBig = [];
   for (const f of arr) {
     try {
       const { text, name } = await readFile(f);
       const rows = parseCsv(text, name);
       if (rows.length === 0) continue;
-      // ファイルにIDを振って、各レコードに _fileId を付与
-      const fileId = nextFileId++;
-      rows.forEach(r => r._fileId = fileId);
-      // サンプル状態からの初回アップロード時はサンプルを破棄
-      if (dataSource === 'sample') {
-        allData = [];
-        uploadedFiles = [];
-        dataSource = 'uploaded';
+
+      if (cloudReady && db) {
+        // ── クラウド保存（全員共有）。Firestoreの1ドキュメント上限(約1MB)をチェック
+        if (new Blob([text]).size > 950000) { tooBig.push(name); continue; }
+        await db.collection('csvFiles').add({
+          name: name,
+          text: text,
+          recordCount: rows.length,
+          uploadedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        totalNew += rows.length;
+        // 画面更新は onSnapshot が担当
+      } else {
+        // ── クラウド未接続時：ローカルのみ（フォールバック）
+        const fileId = nextFileId++;
+        rows.forEach(r => r._fileId = fileId);
+        if (dataSource === 'sample') { allData = []; uploadedFiles = []; dataSource = 'uploaded'; }
+        allData = allData.concat(rows);
+        uploadedFiles.push({ id: fileId, name, text, recordCount: rows.length, uploadedAt: new Date() });
+        totalNew += rows.length;
       }
-      allData = allData.concat(rows);
-      uploadedFiles.push({
-        id: fileId,
-        name: name,
-        text: text,  // ダウンロード用に元CSVテキストを保持
-        recordCount: rows.length,
-        uploadedAt: new Date(),
-      });
-      totalNew += rows.length;
     } catch(e) {
       alert(`${f.name} の読み込みに失敗しました: ${e.message}`);
     }
   }
+  if (tooBig.length) {
+    alert('次のファイルはサイズが大きすぎてクラウド保存できませんでした（1ファイル約1MBまで）:\n' + tooBig.join('\n') + '\n\n月単位など、小さく分割してお試しください。');
+  }
   if (totalNew === 0) {
-    alert('読み込めるレコードがありませんでした。ZOHO形式のCSVをご確認ください。');
+    if (!tooBig.length) alert('読み込めるレコードがありませんでした。ZOHO形式のCSVをご確認ください。');
     return;
   }
+  if (cloudReady && db) return;  // クラウド時は onSnapshot が再描画する
+  // ローカル時のUI更新
   dataSource = 'uploaded';
   const monthCount = [...new Set(allData.map(r=>r.ym))].length;
   document.getElementById('uploadStatus').innerHTML =
-    `<span class="ok">●</span> アップロード済 ${allData.length.toLocaleString()} 件（${monthCount}ヶ月分・${uploadedFiles.length}ファイル）`;
-  state.periodFrom = null;
-  state.periodTo = null;
-  state.ctPeriodFrom = null;
-  state.ctPeriodTo = null;
-  state.media = new Set(['all']);
-  state.emp = new Set(['all']);
+    `<span class="ok">●</span> （ローカル）${allData.length.toLocaleString()} 件（${monthCount}ヶ月分・${uploadedFiles.length}ファイル）`;
+  state.periodFrom = null; state.periodTo = null; state.ctPeriodFrom = null; state.ctPeriodTo = null;
+  state.media = new Set(['all']); state.emp = new Set(['all']);
   rebuildFilters();
   renderAll();
 }
@@ -2165,7 +2219,13 @@ async function handleFiles(files) {
 function deleteFile(fileId) {
   const file = uploadedFiles.find(f => f.id === fileId);
   if (!file) return;
-  if (!confirm(`「${file.name}」を削除します。（${file.recordCount}件）\nよろしいですか？`)) return;
+  if (!confirm(`「${file.name}」を削除します。（${file.recordCount}件）\n${cloudReady ? '※全員の画面から削除されます。\n' : ''}よろしいですか？`)) return;
+  if (cloudReady && db && file.docId) {
+    // クラウドから削除（onSnapshot が全端末を更新）
+    db.collection('csvFiles').doc(file.docId).delete()
+      .catch(e => alert('削除に失敗しました: ' + e.message));
+    return;
+  }
   allData = allData.filter(r => r._fileId !== fileId);
   uploadedFiles = uploadedFiles.filter(f => f.id !== fileId);
   if (allData.length === 0) {
@@ -2236,7 +2296,253 @@ function bootDashboard() {
   setupPivotControls();
   setupAdminControls();
   setupUpload();
+  setupMonthly();
   renderAll();
+  initDataSync();   // クラウド（Firestore）同期を開始
+}
+
+// ============== クラウド同期 (Firestore) ==============
+function initDataSync() {
+  try { db = firebase.firestore(); } catch(e) { db = null; }
+  if (!db) return;
+  db.collection('csvFiles').orderBy('uploadedAt', 'asc').onSnapshot(
+    snap => { cloudReady = true; rebuildFromSnapshot(snap); },
+    err => {
+      cloudReady = false;
+      console.warn('Firestore未接続/エラー:', err.code || err.message);
+      const el = document.getElementById('uploadStatus');
+      if (el && uploadedFiles.length === 0) {
+        el.innerHTML = '<span style="color:var(--warn);">●</span> クラウド未接続（' + (err.code || 'error') + '）— ローカルのみで動作中。Firestoreの有効化が必要です';
+      }
+    }
+  );
+}
+// Firestoreの中身からローカル状態を丸ごと再構築（= 全員共通の単一ソース）
+function rebuildFromSnapshot(snap) {
+  uploadedFiles = [];
+  allData = [];
+  nextFileId = 1;
+  snap.forEach(doc => {
+    const d = doc.data() || {};
+    const fileId = nextFileId++;
+    const rows = parseCsv(d.text || '', d.name || '');
+    rows.forEach(r => r._fileId = fileId);
+    allData = allData.concat(rows);
+    uploadedFiles.push({
+      id: fileId,
+      docId: doc.id,
+      name: d.name || '(無名)',
+      text: d.text || '',
+      recordCount: rows.length,
+      uploadedAt: (d.uploadedAt && d.uploadedAt.toDate) ? d.uploadedAt.toDate() : null,
+    });
+  });
+  dataSource = uploadedFiles.length ? 'uploaded' : 'empty';
+  const el = document.getElementById('uploadStatus');
+  if (el) {
+    if (uploadedFiles.length) {
+      const monthCount = [...new Set(allData.map(r => r.ym))].length;
+      el.innerHTML = `<span class="ok">●</span> クラウド同期中 ${allData.length.toLocaleString()} 件（${monthCount}ヶ月分・${uploadedFiles.length}ファイル・全員共有）`;
+    } else {
+      el.innerHTML = '<span style="color:var(--text-faint);">●</span> データ未登録 — CSVをアップロードすると全員に共有されます';
+    }
+  }
+  rebuildFilters();
+  renderAll();
+}
+
+// ============== 月別分析タブ ==============
+function monthsSorted() { return [...new Set(allData.map(r => r.ym))].sort(); }
+
+function buildMonthlySelect() {
+  const sel = document.getElementById('monthlySel');
+  if (!sel) return;
+  const months = monthsSorted();
+  sel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join('');
+  if (!state.monthlySel || !months.includes(state.monthlySel)) {
+    state.monthlySel = months.length ? months[months.length - 1] : null;
+  }
+  if (state.monthlySel) sel.value = state.monthlySel;
+}
+
+function setupMonthly() {
+  const sel = document.getElementById('monthlySel');
+  if (sel) sel.addEventListener('change', e => { state.monthlySel = e.target.value; renderMonthly(); });
+  const prev = document.getElementById('monthlyPrev');
+  const next = document.getElementById('monthlyNext');
+  if (prev) prev.addEventListener('click', () => stepMonth(-1));
+  if (next) next.addEventListener('click', () => stepMonth(1));
+}
+function stepMonth(dir) {
+  const months = monthsSorted();
+  const i = months.indexOf(state.monthlySel);
+  const ni = i + dir;
+  if (ni < 0 || ni >= months.length) return;
+  state.monthlySel = months[ni];
+  const sel = document.getElementById('monthlySel');
+  if (sel) sel.value = state.monthlySel;
+  renderMonthly();
+}
+
+// 前月比の差分表示
+function deltaHtml(cur, prev, hasPrev) {
+  if (!hasPrev) return '<span class="mo-flat">前月なし</span>';
+  if (prev === 0) return cur > 0 ? '<span class="mo-up">新規 ▲</span>' : '<span class="mo-flat">±0</span>';
+  const d = cur - prev;
+  const pct = Math.round(d / prev * 100);
+  if (d > 0) return `<span class="mo-up">▲ +${fmtNum(d)}（+${pct}%）</span>`;
+  if (d < 0) return `<span class="mo-down">▼ ${fmtNum(d)}（${pct}%）</span>`;
+  return '<span class="mo-flat">±0</span>';
+}
+// 横棒リスト
+function moBarList(items, opt) {
+  opt = opt || {};
+  const max = Math.max(1, ...items.map(i => i.value));
+  if (items.length === 0) return '<div class="empty" style="padding:18px;"><span class="icon">○</span>データなし</div>';
+  return '<div class="mo-bars">' + items.map(i => {
+    const col = i.color || opt.color || 'var(--mint-400)';
+    return `<div class="mo-bar-row">
+      <div class="mo-bar-label">${escapeHtml(i.label)}</div>
+      <div class="mo-bar-track"><div class="mo-bar-fill" style="width:${(i.value / max * 100).toFixed(0)}%; background:${col};"></div></div>
+      <div class="mo-bar-num">${fmtNum(i.value)}<span class="sub">${i.sub || ''}</span></div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderMonthly() {
+  const area = document.getElementById('monthlyArea');
+  if (!area) return;
+  const months = monthsSorted();
+  const cmpEl = document.getElementById('monthlyCompare');
+  if (months.length === 0 || !state.monthlySel) {
+    if (cmpEl) cmpEl.textContent = '';
+    area.innerHTML = '<div class="card"><div class="empty"><span class="icon">○</span>データがありません<div class="hint">CSVをアップロードしてください</div></div></div>';
+    return;
+  }
+  const ym = state.monthlySel;
+  const idx = months.indexOf(ym);
+  const prevYm = idx > 0 ? months[idx - 1] : null;
+  const hasPrev = !!prevYm;
+  const cur = allData.filter(r => r.ym === ym);
+  const prevRows = prevYm ? allData.filter(r => r.ym === prevYm) : [];
+  const c = aggregate(cur);
+  const p = aggregate(prevRows);
+  if (cmpEl) cmpEl.textContent = hasPrev ? `前月（${prevYm}）と比較` : '前月データなし';
+
+  const rate = (a, b) => b ? Math.round(a / b * 100) : 0;
+
+  // ── ヘッドライン
+  const headline = `<div class="mo-headline">
+    <div class="mo-month">${ym}</div>
+    <div class="mo-stat">応募 <b>${fmtNum(c.apply)}</b>件</div>
+    <div class="mo-stat">採用 <b>${fmtNum(c.hire)}</b>名</div>
+    <div class="mo-stat">採用率 <b>${rate(c.hire, c.apply)}</b>%</div>
+    <div class="mo-stat">売上 <b>${fmtYen(c.revenue)}</b>円</div>
+    <div class="mo-stat">1件単価 <b>${c.hire ? fmtYen(Math.round(c.revenue / c.hire)) : 0}</b>円</div>
+  </div>`;
+
+  // ── KPI（前月比つき）
+  const kpis = [
+    { label: '応募', cls: '--apply', cur: c.apply, prev: p.apply },
+    { label: 'コンタクト', cls: '--contact', cur: c.contact, prev: p.contact },
+    { label: '面談実施', cls: '--meeting', cur: c.meeting, prev: p.meeting },
+    { label: '面接実施', cls: '--interview', cur: c.interview_done, prev: p.interview_done },
+    { label: '採用', cls: '--hire', cur: c.hire, prev: p.hire },
+    { label: '売上(紹介手数料)', cls: '--revenue', cur: c.revenue, prev: p.revenue, yen: true },
+  ];
+  const kpiHtml = '<div class="kpi-grid">' + kpis.map(k => `
+    <div class="kpi ${k.cls}">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.yen ? fmtYen(k.cur) : fmtNum(k.cur)}${k.yen ? '<span class="unit">円</span>' : ''}</div>
+      <div class="delta">${deltaHtml(k.cur, k.prev, hasPrev)}</div>
+    </div>`).join('') + '</div>';
+
+  // ── ファネル
+  const stages = [
+    { label: '応募', value: c.apply, color: FUNNEL_COLORS[0] },
+    { label: 'コンタクト', value: c.contact, color: FUNNEL_COLORS[1] },
+    { label: '面談実施', value: c.meeting, color: FUNNEL_COLORS[2] },
+    { label: '面接実施', value: c.interview_done, color: FUNNEL_COLORS[3] },
+    { label: '採用', value: c.hire, color: FUNNEL_COLORS[4] },
+  ];
+  const fmax = c.apply || 1;
+  const funnelHtml = `<div class="section mo-section">
+    <div class="section-title"><span class="marker"></span>FUNNEL<span class="ja">採用ファネル（${ym}）</span></div>
+    <div class="card"><div class="funnel">` + stages.map((s, i) => {
+    const w = (s.value / fmax * 100).toFixed(1);
+    const prevV = i === 0 ? null : stages[i - 1].value;
+    const conv = prevV != null && prevV > 0 ? `前段階比 <b>${Math.round(s.value / prevV * 100)}%</b>` : '応募ベース';
+    return `<div class="funnel-row">
+      <div class="funnel-label">${s.label}</div>
+      <div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${w}%; --bar-color:${s.color}"></div><div class="funnel-value">${s.value}</div></div>
+      <div class="funnel-conv">${conv}</div>
+    </div>`;
+  }).join('') + '</div></div></div>';
+
+  // ── 媒体別
+  const mediaMap = {};
+  cur.forEach(r => {
+    const m = r.media || '(未設定)';
+    if (!mediaMap[m]) mediaMap[m] = { apply: 0, hire: 0 };
+    mediaMap[m].apply++;
+    if (classify(r).hire) mediaMap[m].hire++;
+  });
+  const mediaItems = Object.entries(mediaMap).sort((a, b) => b[1].apply - a[1].apply)
+    .map(([m, v]) => ({ label: m, value: v.apply, color: MEDIA_COLORS[m] || '#7a8589', sub: `採用${v.hire}・${rate(v.hire, v.apply)}%` }));
+
+  // ── 雇用形態（採用時）
+  const empMap = {};
+  cur.filter(r => (r.after_interview || '').includes('採用')).forEach(r => {
+    const e = realEmp(r) || normalizeEmp(r.employment) || '(不明)';
+    empMap[e] = (empMap[e] || 0) + 1;
+  });
+  const empItems = Object.entries(empMap).sort((a, b) => b[1] - a[1])
+    .map(([e, v]) => ({ label: e, value: v, color: EMP_COLORS[e] || '#7a8589' }));
+
+  // ── 年代別（応募／採用）
+  const ageMap = {};
+  cur.forEach(r => {
+    const b = ageBand(r.age);
+    if (!b) return;
+    if (!ageMap[b]) ageMap[b] = { apply: 0, hire: 0 };
+    ageMap[b].apply++;
+    if (classify(r).hire) ageMap[b].hire++;
+  });
+  const ageItems = Object.keys(ageMap).sort().map(b => ({ label: b, value: ageMap[b].apply, sub: `採用${ageMap[b].hire}` }));
+
+  // ── エリアTOP
+  const areaMap = {};
+  cur.forEach(r => { const a = extractArea(r.address); areaMap[a] = (areaMap[a] || 0) + 1; });
+  const areaItems = Object.entries(areaMap).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([a, v]) => ({ label: a, value: v }));
+
+  // ── 応募職種ランキング
+  const jobMap = {};
+  cur.forEach(r => {
+    const j = normalizeJob(r.job) || '(未設定)';
+    if (!jobMap[j]) jobMap[j] = { apply: 0, hire: 0 };
+    jobMap[j].apply++;
+    if (classify(r).hire) jobMap[j].hire++;
+  });
+  const jobItems = Object.entries(jobMap).sort((a, b) => b[1].apply - a[1].apply).slice(0, 10)
+    .map(([j, v]) => ({ label: j, value: v.apply, sub: `採用${v.hire}` }));
+
+  const card = (title, body) => `<div class="card"><div class="section-title" style="margin-bottom:12px; font-size:11px;">${title}</div>${body}</div>`;
+  const gridHtml = `<div class="section mo-section">
+    <div class="section-title"><span class="marker"></span>BREAKDOWN<span class="ja">${ym} の内訳</span></div>
+    <div class="split-grid">
+      ${card('媒体別（応募／採用・採用率）', moBarList(mediaItems))}
+      ${card('採用者の雇用形態', moBarList(empItems))}
+    </div>
+    <div class="split-grid" style="margin-top:16px;">
+      ${card('年代別 応募（採用数つき）', moBarList(ageItems))}
+      ${card('エリア（市町村）TOP8', moBarList(areaItems))}
+    </div>
+    <div style="margin-top:16px;">
+      ${card('応募職種ランキング TOP10（採用数つき）', moBarList(jobItems))}
+    </div>
+  </div>`;
+
+  area.innerHTML = headline + kpiHtml + funnelHtml + gridHtml;
 }
 </script>
 
