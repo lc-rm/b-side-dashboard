@@ -605,10 +605,14 @@ body.auth-locked .app { display: none; }
       <!-- ① ピボット（区分別の表） -->
       <div class="section">
         <div class="section-title"><span class="marker"></span>PIVOT<span class="ja">区分別の集計（表）</span></div>
-        <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">年代別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div></div>
-        <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">職種別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div></div>
-        <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">雇用形態別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div></div>
-        <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">媒体別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div></div>
+        <div class="split-grid">
+          <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">年代別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div></div>
+          <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">職種別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div></div>
+        </div>
+        <div class="split-grid" style="margin-top:14px;">
+          <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">雇用形態別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div></div>
+          <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">媒体別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div></div>
+        </div>
         <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">応募先別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross mo-cross-wide" id="moCross_company"></table></div></div>
       </div>
 
