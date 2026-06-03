@@ -406,8 +406,12 @@ body.auth-locked .app { display: none; }
 .mo-pair { display: flex; gap: 16px; align-items: flex-start; }
 .mo-pair > .card { flex: 1 1 0; min-width: 0; }
 @media (max-width: 900px) { .mo-pair { flex-direction: column; } }
-/* ドーナツは全カード同じ大きさ・中央寄せ */
-.mo-donut { height: 260px; max-width: 480px; margin: 0 auto; }
+/* ドーナツ本体は固定サイズ（凡例は外に出して大きさを完全に揃える） */
+.mo-donut { max-width: 460px; margin: 0 auto; }
+.mo-donut .moc { height: 200px; }
+.mo-donut .mol { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 14px; margin-top: 12px; font-size: 11px; color: #1a2421; }
+.mo-donut .mol-item { display: inline-flex; align-items: center; white-space: nowrap; }
+.mo-donut .mol-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 5px; }
 /* 値の表は中央寄せ（右の余白を左右均等に） */
 .pivot-tbl.mo-cross { margin-left: auto; margin-right: auto; }
 </style>
@@ -596,28 +600,28 @@ body.auth-locked .app { display: none; }
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 年代</div>
         <div class="mo-pair">
-          <div class="card"><div class="mo-donut"><canvas id="moChart_age"></canvas></div></div>
+          <div class="card"><div class="mo-donut"><div class="moc"><canvas id="moChart_age"></canvas></div><div class="mol" id="moChart_age_leg"></div></div></div>
           <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div></div>
         </div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 職種</div>
         <div class="mo-pair">
-          <div class="card"><div class="mo-donut"><canvas id="moChart_job"></canvas></div></div>
+          <div class="card"><div class="mo-donut"><div class="moc"><canvas id="moChart_job"></canvas></div><div class="mol" id="moChart_job_leg"></div></div></div>
           <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div></div>
         </div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 雇用形態</div>
         <div class="mo-pair">
-          <div class="card"><div class="mo-donut"><canvas id="moChart_emp"></canvas></div></div>
+          <div class="card"><div class="mo-donut"><div class="moc"><canvas id="moChart_emp"></canvas></div><div class="mol" id="moChart_emp_leg"></div></div></div>
           <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div></div>
         </div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 媒体</div>
         <div class="mo-pair">
-          <div class="card"><div class="mo-donut"><canvas id="moChart_media"></canvas></div></div>
+          <div class="card"><div class="mo-donut"><div class="moc"><canvas id="moChart_media"></canvas></div><div class="mol" id="moChart_media_leg"></div></div></div>
           <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div></div>
         </div>
       </div>
@@ -2449,9 +2453,12 @@ function moDonut(id, counts, colorMap) {
   const colors = labels.map((k, i) => (colorMap && colorMap[k]) || (k === 'その他' ? '#b8c2bd' : MO_PALETTE[i % MO_PALETTE.length]));
   moMkChart(id, {
     type: 'doughnut',
-    data: { labels: labels.map((k, i) => `${k}（${total ? Math.round(data[i] / total * 100) : 0}%）`), datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { position: 'bottom', labels: { color: '#1a2421', font: MO_FONT, boxWidth: 10, padding: 6 } }, tooltip: { ...MO_TT, callbacks: { label: c => ` ${labels[c.dataIndex]}: ${c.parsed}名` } } } }
+    data: { labels: labels, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { display: false }, tooltip: { ...MO_TT, callbacks: { label: c => ` ${labels[c.dataIndex]}: ${c.parsed}名（${total ? Math.round(data[c.dataIndex] / total * 100) : 0}%）` } } } }
   });
+  // 凡例はドーナツの外（下）に描画してサイズを揃える
+  const leg = document.getElementById(id + '_leg');
+  if (leg) leg.innerHTML = labels.map((k, i) => `<span class="mol-item"><span class="mol-dot" style="background:${colors[i]}"></span>${escapeHtml(k)}（${total ? Math.round(data[i] / total * 100) : 0}%）</span>`).join('');
 }
 function moBarH(id, counts, n) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n);
