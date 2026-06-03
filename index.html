@@ -402,10 +402,10 @@ body.auth-locked .app { display: none; }
 .pivot-tbl.mo-cross th.num, .pivot-tbl.mo-cross td.num { width: 84px; }
 .pivot-tbl.mo-cross .toggler { cursor: pointer; }
 /* カード内：グラフ左・表右の横並び */
-.mo-card-row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
-.mo-card-row .chart-box { flex: 0 0 320px; }
-.mo-card-row .pivot-wrap { flex: 1 1 380px; margin: 0; }
-@media (max-width: 860px) { .mo-card-row .chart-box { flex-basis: 100%; } }
+/* ドーナツは全カード同じ大きさ・中央寄せ */
+.mo-donut { height: 260px; max-width: 480px; margin: 0 auto; }
+/* 値の表は中央寄せ（右の余白を左右均等に） */
+.pivot-tbl.mo-cross { margin-left: auto; margin-right: auto; }
 </style>
 </head>
 <body class="auth-locked">
@@ -591,48 +591,28 @@ body.auth-locked .app { display: none; }
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 年代</div>
-        <div class="card">
-          <div class="mo-card-row">
-            <div class="chart-box short"><canvas id="moChart_age"></canvas></div>
-            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div>
-          </div>
-        </div>
+        <div class="card"><div class="mo-donut"><canvas id="moChart_age"></canvas></div></div>
+        <div class="card" style="margin-top:14px;"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div></div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 職種</div>
-        <div class="card">
-          <div class="mo-card-row">
-            <div class="chart-box short"><canvas id="moChart_job"></canvas></div>
-            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div>
-          </div>
-        </div>
+        <div class="card"><div class="mo-donut"><canvas id="moChart_job"></canvas></div></div>
+        <div class="card" style="margin-top:14px;"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div></div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 雇用形態</div>
-        <div class="card">
-          <div class="mo-card-row">
-            <div class="chart-box short"><canvas id="moChart_emp"></canvas></div>
-            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div>
-          </div>
-        </div>
+        <div class="card"><div class="mo-donut"><canvas id="moChart_emp"></canvas></div></div>
+        <div class="card" style="margin-top:14px;"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div></div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 媒体</div>
-        <div class="card">
-          <div class="mo-card-row">
-            <div class="chart-box short"><canvas id="moChart_media"></canvas></div>
-            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div>
-          </div>
-        </div>
+        <div class="card"><div class="mo-donut"><canvas id="moChart_media"></canvas></div></div>
+        <div class="card" style="margin-top:14px;"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div></div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 応募先</div>
-        <div class="card">
-          <div class="mo-card-row">
-            <div class="chart-box"><canvas id="moChart_company"></canvas></div>
-            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_company"></table></div>
-          </div>
-        </div>
+        <div class="card"><div class="chart-box" style="height:380px;"><canvas id="moChart_company"></canvas></div></div>
+        <div class="card" style="margin-top:14px;"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_company"></table></div></div>
       </div>
     </div>
   </div><!-- /page-pane monthly -->
@@ -2466,7 +2446,7 @@ function moBarH(id, counts, n) {
   moMkChart(id, {
     type: 'bar',
     data: { labels: entries.map(e => e[0]), datasets: [{ label: '応募', data: entries.map(e => e[1]), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1, borderRadius: 4 }] },
-    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { left: 2 } }, plugins: { legend: { display: false }, tooltip: MO_TT }, scales: { x: { beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT } }, y: { grid: { display: false }, ticks: { color: '#1a2421', font: { family: 'Noto Sans JP', size: 10 }, autoSkip: false, callback: function (v) { const l = this.getLabelForValue(v); return l.length > 9 ? l.slice(0, 9) + '…' : l; } } } } }
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: MO_TT }, scales: { x: { beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT } }, y: { grid: { display: false }, ticks: { color: '#1a2421', font: MO_FONT, autoSkip: false } } } }
   });
 }
 
