@@ -401,6 +401,11 @@ body.auth-locked .app { display: none; }
 .pivot-tbl.mo-cross th:first-child, .pivot-tbl.mo-cross td:first-child { width: 130px; }
 .pivot-tbl.mo-cross th.num, .pivot-tbl.mo-cross td.num { width: 84px; }
 .pivot-tbl.mo-cross .toggler { cursor: pointer; }
+/* カード内：グラフ左・表右の横並び */
+.mo-card-row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.mo-card-row .chart-box { flex: 0 0 320px; }
+.mo-card-row .pivot-wrap { flex: 1 1 380px; margin: 0; }
+@media (max-width: 860px) { .mo-card-row .chart-box { flex-basis: 100%; } }
 </style>
 </head>
 <body class="auth-locked">
@@ -587,36 +592,46 @@ body.auth-locked .app { display: none; }
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 年代</div>
         <div class="card">
-          <div class="chart-box short"><canvas id="moChart_age"></canvas></div>
-          <div class="pivot-wrap" style="margin-top:12px;"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div>
+          <div class="mo-card-row">
+            <div class="chart-box short"><canvas id="moChart_age"></canvas></div>
+            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div>
+          </div>
         </div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 職種</div>
         <div class="card">
-          <div class="chart-box short"><canvas id="moChart_job"></canvas></div>
-          <div class="pivot-wrap" style="margin-top:12px;"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div>
+          <div class="mo-card-row">
+            <div class="chart-box short"><canvas id="moChart_job"></canvas></div>
+            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div>
+          </div>
         </div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 雇用形態</div>
         <div class="card">
-          <div class="chart-box short"><canvas id="moChart_emp"></canvas></div>
-          <div class="pivot-wrap" style="margin-top:12px;"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div>
+          <div class="mo-card-row">
+            <div class="chart-box short"><canvas id="moChart_emp"></canvas></div>
+            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div>
+          </div>
         </div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 媒体</div>
         <div class="card">
-          <div class="chart-box short"><canvas id="moChart_media"></canvas></div>
-          <div class="pivot-wrap" style="margin-top:12px;"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div>
+          <div class="mo-card-row">
+            <div class="chart-box short"><canvas id="moChart_media"></canvas></div>
+            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div>
+          </div>
         </div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>月 × 応募先</div>
         <div class="card">
-          <div class="chart-box"><canvas id="moChart_company"></canvas></div>
-          <div class="pivot-wrap" style="margin-top:12px;"><table class="pivot-tbl mo-cross" id="moCross_company"></table></div>
+          <div class="mo-card-row">
+            <div class="chart-box"><canvas id="moChart_company"></canvas></div>
+            <div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_company"></table></div>
+          </div>
         </div>
       </div>
     </div>
@@ -2443,7 +2458,7 @@ function moDonut(id, counts, colorMap) {
   moMkChart(id, {
     type: 'doughnut',
     data: { labels: labels.map((k, i) => `${k}（${total ? Math.round(data[i] / total * 100) : 0}%）`), datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { position: 'right', labels: { color: '#1a2421', font: MO_FONT, boxWidth: 10, padding: 6 } }, tooltip: { ...MO_TT, callbacks: { label: c => ` ${labels[c.dataIndex]}: ${c.parsed}名` } } } }
+    options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { position: 'bottom', labels: { color: '#1a2421', font: MO_FONT, boxWidth: 10, padding: 6 } }, tooltip: { ...MO_TT, callbacks: { label: c => ` ${labels[c.dataIndex]}: ${c.parsed}名` } } } }
   });
 }
 function moBarH(id, counts, n) {
