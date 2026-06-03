@@ -601,40 +601,35 @@ body.auth-locked .app { display: none; }
         <div class="section-title"><span class="marker"></span>サマリー<span class="ja" id="moMonthLabel"></span></div>
         <div class="card"><div class="kpi-grid" id="moKpi"></div></div>
       </div>
+
+      <!-- ① ピボット（区分別の表） -->
       <div class="section">
-        <div class="section-title"><span class="marker"></span>年代別</div>
-        <div class="mo-pair">
-          <div class="card"><div class="mo-donut"><div class="moc"><canvas id="moChart_age"></canvas></div><div class="mol" id="moChart_age_leg"></div></div></div>
-          <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div></div>
-        </div>
+        <div class="section-title"><span class="marker"></span>PIVOT<span class="ja">区分別の集計（表）</span></div>
+        <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">年代別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_age"></table></div></div>
+        <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">職種別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div></div>
+        <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">雇用形態別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div></div>
+        <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">媒体別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div></div>
+        <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">応募先別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross mo-cross-wide" id="moCross_company"></table></div></div>
       </div>
+
+      <!-- ② ドーナツ（構成比） -->
       <div class="section">
-        <div class="section-title"><span class="marker"></span>職種別</div>
-        <div class="mo-pair">
-          <div class="card"><div class="mo-donut"><div class="moc"><canvas id="moChart_job"></canvas></div><div class="mol" id="moChart_job_leg"></div></div></div>
-          <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_job"></table></div></div>
+        <div class="section-title"><span class="marker"></span>DONUT<span class="ja">構成比（円グラフ）</span></div>
+        <div class="split-grid">
+          <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">年代別</div><div class="mo-donut"><div class="moc"><canvas id="moChart_age"></canvas></div><div class="mol" id="moChart_age_leg"></div></div></div>
+          <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">職種別</div><div class="mo-donut"><div class="moc"><canvas id="moChart_job"></canvas></div><div class="mol" id="moChart_job_leg"></div></div></div>
         </div>
+        <div class="split-grid" style="margin-top:16px;">
+          <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">雇用形態別</div><div class="mo-donut"><div class="moc"><canvas id="moChart_emp"></canvas></div><div class="mol" id="moChart_emp_leg"></div></div></div>
+          <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">媒体別</div><div class="mo-donut"><div class="moc"><canvas id="moChart_media"></canvas></div><div class="mol" id="moChart_media_leg"></div></div></div>
+        </div>
+        <div class="card" style="margin-top:16px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">応募先別（応募数）</div><div class="chart-box" style="height:360px;"><canvas id="moChart_company"></canvas></div></div>
       </div>
+
+      <!-- ③ 線グラフ（推移） -->
       <div class="section">
-        <div class="section-title"><span class="marker"></span>雇用形態別</div>
-        <div class="mo-pair">
-          <div class="card"><div class="mo-donut"><div class="moc"><canvas id="moChart_emp"></canvas></div><div class="mol" id="moChart_emp_leg"></div></div></div>
-          <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div></div>
-        </div>
-      </div>
-      <div class="section">
-        <div class="section-title"><span class="marker"></span>媒体別</div>
-        <div class="mo-pair">
-          <div class="card"><div class="mo-donut"><div class="moc"><canvas id="moChart_media"></canvas></div><div class="mol" id="moChart_media_leg"></div></div></div>
-          <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div></div>
-        </div>
-      </div>
-      <div class="section">
-        <div class="section-title"><span class="marker"></span>応募先別</div>
-        <div class="mo-pair mo-pair-wide">
-          <div class="card"><div class="chart-box" style="height:360px;"><canvas id="moChart_company"></canvas></div></div>
-          <div class="card"><div class="pivot-wrap"><table class="pivot-tbl mo-cross mo-cross-wide" id="moCross_company"></table></div></div>
-        </div>
+        <div class="section-title"><span class="marker"></span>TREND<span class="ja">月別の推移（応募・採用・採用率）</span></div>
+        <div class="card"><div class="chart-box"><canvas id="moTrend"></canvas></div></div>
       </div>
     </div>
   </div><!-- /page-pane monthly -->
@@ -2546,6 +2541,36 @@ function renderMonthly() {
   moDimTable('moCross_media', 'media', rows, MEDIA_COLORS);
   moBarH('moChart_company', moCountBy(rows, 'company'), 12);
   moDimTable('moCross_company', 'company', rows, null, true);
+  renderMoTrend(moMonth);
+}
+
+// 月別の推移（線グラフ・全期間／選択月を強調）
+function renderMoTrend(selYm) {
+  const months = monthsSorted();
+  const M = {}; months.forEach(m => M[m] = { a: 0, h: 0 });
+  allData.forEach(r => { if (!M[r.ym]) return; M[r.ym].a++; if (classify(r).hire) M[r.ym].h++; });
+  const apply = months.map(m => M[m].a), hire = months.map(m => M[m].h);
+  const rate = months.map(m => M[m].a ? +(M[m].h / M[m].a * 100).toFixed(1) : 0);
+  const ptR = months.map(m => m === selYm ? 7 : 3);
+  moMkChart('moTrend', {
+    data: {
+      labels: months.map(moYmLabel),
+      datasets: [
+        { type: 'line', label: '応募', data: apply, borderColor: '#4a90c4', backgroundColor: '#4a90c4', borderWidth: 2.5, tension: 0.3, pointRadius: ptR, yAxisID: 'y', fill: false },
+        { type: 'line', label: '採用', data: hire, borderColor: MINT, backgroundColor: MINT, borderWidth: 2.5, tension: 0.3, pointRadius: ptR, yAxisID: 'y', fill: false },
+        { type: 'line', label: '採用率(%)', data: rate, borderColor: '#d96666', backgroundColor: '#d96666', borderWidth: 2, borderDash: [4, 3], tension: 0.3, pointRadius: ptR, yAxisID: 'yR', fill: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { color: '#5a6862', font: MO_FONT, boxWidth: 12, padding: 10 } }, tooltip: MO_TT },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#5a6862', font: MO_FONT } },
+        y: { position: 'left', beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT }, title: { display: true, text: '人数', color: '#8a9690', font: { size: 11 } } },
+        yR: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#d96666', font: MO_FONT, callback: v => v + '%' }, title: { display: true, text: '採用率', color: '#d96666', font: { size: 11 } } },
+      }
+    }
+  });
 }
 </script>
 
