@@ -2466,7 +2466,7 @@ function moBarH(id, counts, n) {
   moMkChart(id, {
     type: 'bar',
     data: { labels: entries.map(e => e[0]), datasets: [{ label: '応募', data: entries.map(e => e[1]), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1, borderRadius: 4 }] },
-    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: MO_TT }, scales: { x: { beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT } }, y: { grid: { display: false }, ticks: { color: '#1a2421', font: MO_FONT } } } }
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { left: 2 } }, plugins: { legend: { display: false }, tooltip: MO_TT }, scales: { x: { beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT } }, y: { grid: { display: false }, ticks: { color: '#1a2421', font: { family: 'Noto Sans JP', size: 10 }, autoSkip: false, callback: function (v) { const l = this.getLabelForValue(v); return l.length > 9 ? l.slice(0, 9) + '…' : l; } } } } }
   });
 }
 
