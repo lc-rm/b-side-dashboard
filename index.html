@@ -2438,66 +2438,48 @@ function moBarH(id, counts, n) {
   });
 }
 
-// ===== フラットクロス表（行=月×[応募/採用]、列=区分） =====
+// ===== フラットクロス表（行=月→区分、列=応募・採用・採用率） =====
+function moDimName(dim) { return { age: '年代', job: '職種', company: '応募先', media: '媒体', employment: '雇用形態' }[dim] || dim; }
 function moRenderCross(elId, dim, months, colorMap) {
   const el = document.getElementById(elId);
   if (!el) return;
-  const byMonth = {}; months.forEach(m => byMonth[m] = {});
-  const totalByVal = {};
+  const byMonth = {}; const overall = {};
+  months.forEach(m => byMonth[m] = {});
   allData.forEach(r => {
     const m = r.ym; if (!byMonth[m]) return;
     const v = moDimVal(r, dim);
     const hire = classify(r).hire;
     if (!byMonth[m][v]) byMonth[m][v] = { a: 0, h: 0 };
     byMonth[m][v].a++; if (hire) byMonth[m][v].h++;
-    if (!totalByVal[v]) totalByVal[v] = 0;
-    totalByVal[v]++;
+    if (!overall[v]) overall[v] = { a: 0, h: 0 };
+    overall[v].a++; if (hire) overall[v].h++;
   });
-  let cols = Object.keys(totalByVal);
-  if (dim === 'age') cols.sort((a, b) => AGE_ORDER.indexOf(a) - AGE_ORDER.indexOf(b));
-  else cols.sort((a, b) => totalByVal[b] - totalByVal[a]);
-  let hasOther = false;
-  if (cols.length > 8) { cols = cols.slice(0, 8); hasOther = true; }
-  const get = (m, c) => byMonth[m][c] || { a: 0, h: 0 };
-  const otherOf = (m, key) => { let s = 0; Object.entries(byMonth[m]).forEach(([k, v]) => { if (!cols.includes(k)) s += v[key]; }); return s; };
+  let order = Object.keys(overall);
+  if (dim === 'age') order.sort((a, b) => AGE_ORDER.indexOf(a) - AGE_ORDER.indexOf(b));
+  else order.sort((a, b) => overall[b].a - overall[a].a);
+  const topN = 12; let top = order, hasOther = false;
+  if (order.length > topN) { top = order.slice(0, topN); hasOther = true; }
+  const rateCell = (a, h) => { if (!a) return '-'; const p = Math.round(h / a * 100); const cls = p >= 20 ? '' : p >= 10 ? 'mid' : 'lo'; return `<span class="rate-pill ${cls}">${p}%</span>`; };
+  const dot = v => (colorMap && colorMap[v]) ? `<span class="media-dot" style="background:${colorMap[v]}"></span>` : '';
 
-  let h = `<thead><tr><th>月</th><th>区分</th>`;
-  cols.forEach(c => { const dot = colorMap && colorMap[c] ? `<span class="media-dot" style="background:${colorMap[c]}"></span>` : ''; h += `<th class="num">${dot}${escapeHtml(c)}</th>`; });
-  if (hasOther) h += `<th class="num">その他</th>`;
-  h += `<th class="num">合計</th></tr></thead><tbody>`;
-
-  const colTotalsA = {}, colTotalsH = {}; cols.forEach(c => { colTotalsA[c] = 0; colTotalsH[c] = 0; });
-  let otherA = 0, otherH = 0, grandA = 0, grandH = 0;
-
+  let h = `<thead><tr><th>月</th><th>${escapeHtml(moDimName(dim))}</th><th class="num">応募</th><th class="num">採用</th><th class="num">採用率</th></tr></thead><tbody>`;
+  let gA = 0, gH = 0;
   months.forEach(m => {
+    const rows = [];
+    top.forEach(v => { const g = byMonth[m][v]; if (g && (g.a || g.h)) rows.push([v, g.a, g.h]); });
+    if (hasOther) { let oa = 0, oh = 0; Object.entries(byMonth[m]).forEach(([k, g]) => { if (!top.includes(k)) { oa += g.a; oh += g.h; } }); if (oa || oh) rows.push(['その他', oa, oh]); }
+    if (dim !== 'age') rows.sort((x, y) => y[1] - x[1]);
     let mA = 0, mH = 0;
-    let r1 = `<tr class="level-0" style="border-top:2px solid var(--mint-100);"><td><b>${moYmLabel(m)}</b></td><td>応募</td>`;
-    let r2 = `<tr class="level-2"><td></td><td>採用</td>`;
-    cols.forEach(c => {
-      const g = get(m, c);
-      r1 += `<td class="num">${moNum(g.a)}</td>`;
-      r2 += `<td class="num">${moNum(g.h)}</td>`;
-      mA += g.a; mH += g.h; colTotalsA[c] += g.a; colTotalsH[c] += g.h;
+    rows.forEach((rw, idx) => {
+      mA += rw[1]; mH += rw[2];
+      const monthCell = idx === 0 ? `<b>${moYmLabel(m)}</b>` : '';
+      const bt = idx === 0 ? ' style="border-top:2px solid var(--mint-100);"' : '';
+      h += `<tr class="level-2"${bt}><td>${monthCell}</td><td>${dot(rw[0])}${escapeHtml(rw[0])}</td><td class="num">${moNum(rw[1])}</td><td class="num">${moNum(rw[2])}</td><td class="num">${rateCell(rw[1], rw[2])}</td></tr>`;
     });
-    if (hasOther) {
-      const oa = otherOf(m, 'a'), oh = otherOf(m, 'h');
-      r1 += `<td class="num">${moNum(oa)}</td>`; r2 += `<td class="num">${moNum(oh)}</td>`;
-      mA += oa; mH += oh; otherA += oa; otherH += oh;
-    }
-    r1 += `<td class="num"><b>${moNum(mA)}</b></td></tr>`;
-    r2 += `<td class="num"><b>${moNum(mH)}</b></td></tr>`;
-    grandA += mA; grandH += mH;
-    h += r1 + r2;
+    h += `<tr class="level-1"><td></td><td><b>${moYmLabel(m)} 小計</b></td><td class="num"><b>${moNum(mA)}</b></td><td class="num"><b>${moNum(mH)}</b></td><td class="num"><b>${rateCell(mA, mH)}</b></td></tr>`;
+    gA += mA; gH += mH;
   });
-
-  // 合計ブロック
-  let t1 = `<tr class="level-0" style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td><b>応募</b></td>`;
-  let t2 = `<tr class="level-0"><td></td><td><b>採用</b></td>`;
-  cols.forEach(c => { t1 += `<td class="num"><b>${moNum(colTotalsA[c])}</b></td>`; t2 += `<td class="num"><b>${moNum(colTotalsH[c])}</b></td>`; });
-  if (hasOther) { t1 += `<td class="num"><b>${moNum(otherA)}</b></td>`; t2 += `<td class="num"><b>${moNum(otherH)}</b></td>`; }
-  t1 += `<td class="num"><b>${moNum(grandA)}</b></td></tr>`;
-  t2 += `<td class="num"><b>${moNum(grandH)}</b></td></tr>`;
-  h += t1 + t2 + `</tbody>`;
+  h += `<tr class="level-0" style="border-top:2px solid var(--mint-200);"><td><b>総計</b></td><td></td><td class="num"><b>${moNum(gA)}</b></td><td class="num"><b>${moNum(gH)}</b></td><td class="num"><b>${rateCell(gA, gH)}</b></td></tr></tbody>`;
   el.innerHTML = h;
 }
 
