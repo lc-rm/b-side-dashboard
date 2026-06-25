@@ -191,7 +191,8 @@ body {
 /* 列フィルタ（スプレッドシート風） */
 .col-filter-btn { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 5px; border-radius: 5px; cursor: pointer; color: var(--mint-600); font-size: 9px; vertical-align: middle; border: 1px solid var(--mint-200); background: var(--mint-50); }
 .col-filter-btn:hover { background: var(--mint-100); border-color: var(--mint-400); }
-.col-filter-btn.on { background: var(--mint-500); color: #fff; border-color: var(--mint-500); }
+.col-filter-btn.on { background: var(--mint-500); color: #fff; border-color: var(--mint-500); width: auto; padding: 0 5px; gap: 3px; }
+.col-filter-btn .cf-badge { font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 9px; line-height: 1; }
 .col-filter-pop { position: fixed; z-index: 200; background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); padding: 6px; min-width: 230px; max-height: 340px; overflow-y: auto; }
 .col-filter-pop .cf-head { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; padding: 6px 10px 5px; }
 .col-filter-pop .cf-item { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 12px; color: var(--text); }
@@ -2460,19 +2461,30 @@ function bootDashboard() {
 let extData = null;
 const extCharts = {};
 let jbSort = { key: 'applies', dir: 'desc' };  // 求人別テーブルの並び替え
-let jbCp = 'all';                               // 求人別 区分(CP)フィルタ
+let jbCpSet = new Set();                         // 求人別 区分(CP)フィルタ（複数選択。空=すべて）
 let jbCpOptions = [];                            // 区分の絞り込み候補（件数つき）
+let jbCpAllCount = 0;                            // 全区分の合計件数
 function jbSetSort(key) { if (jbSort.key === key) jbSort.dir = jbSort.dir === 'desc' ? 'asc' : 'desc'; else { jbSort.key = key; jbSort.dir = 'desc'; } renderJobs(); }
-function jbSetCp(cp) { jbCp = cp; renderJobs(); }
-// 「区分」列ヘッダの絞り込みポップアップ（スプレッドシート風）
+// 「区分」列ヘッダの絞り込みポップアップ（スプレッドシート風・チェックボックス複数選択）
+function jbCpPopBody() {
+  const allOn = jbCpSet.size === 0;
+  return '<div class="cf-head">区分で絞り込み（複数選択可）</div>' +
+    `<div class="cf-item cf-all ${allOn ? 'sel' : ''}" onclick="jbCpAll()"><span><b>すべての区分</b></span><span class="cf-count">${jbCpAllCount}</span></div>` +
+    jbCpOptions.map(o => {
+      const on = jbCpSet.has(o.value);
+      return `<label class="cf-item ${on ? 'sel' : ''}"><span><input type="checkbox" value="${escapeHtml(o.value)}" ${on ? 'checked' : ''} onchange="jbToggleCp(this.value, this.checked)" style="margin-right:8px; vertical-align:-2px; accent-color:var(--mint-500);">${escapeHtml(o.label)}</span><span class="cf-count">${o.count}</span></label>`;
+    }).join('');
+}
+function refreshJbCpPop() { const p = document.getElementById('jbCpPop'); if (p) p.innerHTML = jbCpPopBody(); }
+function jbCpAll() { jbCpSet.clear(); refreshJbCpPop(); renderJobs(); }
+function jbToggleCp(v, checked) { if (checked) jbCpSet.add(v); else jbCpSet.delete(v); refreshJbCpPop(); renderJobs(); }
 function closeJbCpFilter() { const p = document.getElementById('jbCpPop'); if (p) p.remove(); document.removeEventListener('mousedown', jbCpOutside, true); }
 function jbCpOutside(e) { const p = document.getElementById('jbCpPop'); if (p && !p.contains(e.target) && !(e.target.classList && e.target.classList.contains('col-filter-btn'))) closeJbCpFilter(); }
 function jbOpenCpFilter(btnEl) {
   if (document.getElementById('jbCpPop')) { closeJbCpFilter(); return; }
   const pop = document.createElement('div');
   pop.id = 'jbCpPop'; pop.className = 'col-filter-pop';
-  pop.innerHTML = '<div class="cf-head">区分で絞り込み</div>' + jbCpOptions.map(o =>
-    `<div class="cf-item ${jbCp === o.value ? 'sel' : ''}" onclick="jbSetCp('${String(o.value).replace(/'/g, "\\'")}'); closeJbCpFilter();"><span>${escapeHtml(o.label)}</span><span class="cf-count">${o.count}</span></div>`).join('');
+  pop.innerHTML = jbCpPopBody();
   document.body.appendChild(pop);
   const r = btnEl.getBoundingClientRect();
   let left = r.left, top = r.bottom + 6;
@@ -2560,9 +2572,11 @@ function renderJobs() {
   const cpCount = {};
   periodRows.forEach(j => { const c = j.cp || '(未分類)'; cpCount[c] = (cpCount[c] || 0) + 1; });
   const cps = Object.keys(cpCount).sort((a, b) => a.localeCompare(b, 'ja'));
-  if (jbCp !== 'all' && cps.indexOf(jbCp) < 0) jbCp = 'all';
-  jbCpOptions = [{ value: 'all', label: 'すべての区分', count: periodRows.length }].concat(cps.map(c => ({ value: c, label: c, count: cpCount[c] })));
-  const rows = jbCp === 'all' ? periodRows : periodRows.filter(j => (j.cp || '(未分類)') === jbCp);
+  // 期間外で消えた区分は選択から外す
+  [...jbCpSet].forEach(v => { if (cps.indexOf(v) < 0) jbCpSet.delete(v); });
+  jbCpAllCount = periodRows.length;
+  jbCpOptions = cps.map(c => ({ value: c, label: c, count: cpCount[c] }));
+  const rows = jbCpSet.size === 0 ? periodRows : periodRows.filter(j => jbCpSet.has(j.cp || '(未分類)'));
   // 求人別に集計
   const map = {};
   rows.forEach(j => { const a = map[j.title] || (map[j.title] = { title: j.title, cp: j.cp, loc: j.loc, imp: 0, click: 0, applyStart: 0, applies: 0, cost: 0 }); a.imp += j.imp; a.click += j.click; a.applyStart += j.applyStart; a.applies += j.applies; a.cost += j.cost; });
@@ -2581,7 +2595,7 @@ function renderJobs() {
   const tA = list.reduce((s, a) => s + a.applies, 0), tCost = list.reduce((s, a) => s + a.cost, 0), tClick = list.reduce((s, a) => s + a.click, 0), tImp = list.reduce((s, a) => s + a.imp, 0);
   const arr = key => jbSort.key === key ? (jbSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer; user-select:none;" onclick="jbSetSort('${key}')">${label}${arr(key)}</th>`;
-  const cpHeader = `<th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="jbSetSort('cp')">区分${arr('cp')}<span class="col-filter-btn ${jbCp !== 'all' ? 'on' : ''}" title="区分で絞り込み" onclick="event.stopPropagation(); jbOpenCpFilter(this)">▾</span></th>`;
+  const cpHeader = `<th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="jbSetSort('cp')">区分${arr('cp')}<span class="col-filter-btn ${jbCpSet.size ? 'on' : ''}" title="区分で絞り込み" onclick="event.stopPropagation(); jbOpenCpFilter(this)">▾${jbCpSet.size ? '<span class="cf-badge">' + jbCpSet.size + '</span>' : ''}</span></th>`;
   document.getElementById('jbTable').innerHTML = list.length ?
     `<thead><tr>${th('title', '求人', '')}${cpHeader}${th('imp', '表示', 'num')}${th('click', 'クリック', 'num')}${th('applies', '応募', 'num')}${th('cost', 'コスト', 'num')}${th('cpa', '応募単価', 'num')}</tr></thead><tbody>` +
     list.map(a => `<tr><td style="white-space:nowrap; max-width:340px; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(a.title)}">${escapeHtml(a.title)}</td><td>${escapeHtml(a.cp || '')}</td><td class="num">${fmtNum(a.imp)}</td><td class="num">${fmtNum(a.click)}</td><td class="num">${fmtNum(a.applies)}</td><td class="num">${fmtYen(a.cost)}</td><td class="num">${a.applies ? fmtYen(a.cpa) : '-'}</td></tr>`).join('') +
