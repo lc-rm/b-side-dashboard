@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 ビイサイド（福祉事業部）Indeed広告 & 求人別データ → 非PII JSON 変換器
-出力スキーマは AppsScript.gs と共通。data.json は jobcora-dashboard の「広告コスト」「求人別」タブが fetch する。
+出力スキーマは AppsScript.gs と共通。data.json は b-side-dashboard の「広告コスト」「求人別」タブが fetch する。
 
 入力（手元のExcel書き出し）:
   1) ★ビイサイドプランニング様：Indeed結果.xlsx   …「indeedﾃﾞｰﾀ(YYYY年度)」= 月別広告コスト

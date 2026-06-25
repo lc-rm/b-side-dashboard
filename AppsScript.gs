@@ -1,11 +1,11 @@
 /**
  * ビイサイド（福祉事業部）実績ダッシュボード — 広告コスト・求人別データの自動更新 Apps Script
  *  convert.py と同じ data.json スキーマ（{meta, adCost, jobs}）を生成し、
- *  GitHub（lc-rm/jobcora-dashboard）の data.json に5分ごと自動push。
+ *  GitHub（lc-rm/b-side-dashboard）の data.json に5分ごと自動push。
  *  ★氏名・電話・年齢などのPIIは一切出力しない（広告指標と求人掲載実績のみ＝非PII）。
  *
  * 【初回セットアップ（対象スプシを開ける会社アカウント r_murai で実行）】
- *  A. GitHubで fine-grained トークン（Resource owner=lc-rm / Repository=lc-rm/jobcora-dashboard /
+ *  A. GitHubで fine-grained トークン（Resource owner=lc-rm / Repository=lc-rm/b-side-dashboard /
  *     Permissions: Contents = Read and write）を作成
  *  B. このコードを script.google.com のプロジェクトに丸ごと貼り付け
  *  C. 「プロジェクトの設定（歯車）> スクリプト プロパティ」で GITHUB_TOKEN = （作ったトークン）を追加
@@ -14,7 +14,7 @@
 
 var SHEET_ID      = '1yoQ38egYzZD-hg2uDiIEmzxLOyk9xPcMrlaAYUh-gxE';      // 実績元データ（Indeed結果 ＝広告コスト）
 var SHEET_ID_JOBS = '1BqN8GKY4rv07pNzDBZI6_MpwqpXVrD_Ro1vBkzQH_5M';      // 求人別データ（福祉事業部）
-var GITHUB_REPO   = 'lc-rm/jobcora-dashboard';
+var GITHUB_REPO   = 'lc-rm/b-side-dashboard';
 var GITHUB_PATH   = 'data.json';
 
 var COST_COLS = ['imp', 'click', 'CTR', '応募開始数', 'CV', '応募完了率', 'CVR', 'CPC', 'CPA', 'COST', '予算残'];
