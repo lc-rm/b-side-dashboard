@@ -583,6 +583,14 @@ body.auth-locked .app { display: none; }
     </div>
   </div>
 
+  <div class="section">
+    <div class="section-title"><span class="marker"></span>STATUS<span class="ja">面談後状況（ステータス）</span></div>
+    <div class="card">
+      <table class="tbl" id="statusTable"></table>
+      <div style="margin-top:10px; font-size:11px; color:var(--text-faint); line-height:1.5;">※「面談後状況」が記録されている応募者の内訳。構成比は記録あり件数に対する割合。</div>
+    </div>
+  </div>
+
   </div><!-- /page-pane dashboard -->
 
   <div class="page-pane" data-pane="monthly" style="display:none;">
@@ -1942,6 +1950,44 @@ function renderJobTable(rows) {
     </tbody>`;
 }
 
+// ============== 面談後状況（ステータス） ==============
+function renderStatus(rows) {
+  const el = document.getElementById('statusTable');
+  if (!el) return;
+  const map = {};
+  rows.forEach(r => {
+    const v = (r.after_meeting || '').trim();
+    if (!v) return;
+    if (!map[v]) map[v] = { c: 0, h: 0 };
+    map[v].c++;
+    if (classify(r).hire) map[v].h++;
+  });
+  const list = Object.entries(map).sort((a, b) => b[1].c - a[1].c);
+  const total = list.reduce((s, [, v]) => s + v.c, 0);
+  if (!total) {
+    el.innerHTML = '<tbody><tr><td style="padding:24px; text-align:center; color:var(--text-faint);">面談後状況のデータがありません</td></tr></tbody>';
+    return;
+  }
+  const max = Math.max(...list.map(([, v]) => v.c), 1);
+  el.innerHTML = `
+    <thead><tr><th>面談後状況</th><th>件数</th><th>構成比</th><th>採用</th><th>採用率</th><th class="bar-cell">分布</th></tr></thead>
+    <tbody>
+    ${list.map(([k, v]) => {
+      const rate = v.c ? Math.round(v.h / v.c * 100) : 0;
+      const rateCls = rate >= 20 ? '' : rate >= 10 ? 'mid' : 'lo';
+      const bar = (v.c / max * 100).toFixed(0);
+      return `<tr>
+        <td>${escapeHtml(k)}</td>
+        <td class="num">${v.c}</td>
+        <td class="num">${Math.round(v.c / total * 100)}%</td>
+        <td class="num">${v.h || '-'}</td>
+        <td class="num"><span class="rate-pill ${rateCls}">${rate}%</span></td>
+        <td class="bar-cell"><div class="mini-bar"><div style="width:${bar}%"></div></div></td>
+      </tr>`;
+    }).join('')}
+    </tbody>`;
+}
+
 // ============== Render All ==============
 function renderAll() {
   const rows = getFiltered();
@@ -1963,6 +2009,7 @@ function renderAll() {
   renderArea(rows);
   renderFlow(rows);
   renderJobTable(rows);
+  renderStatus(rows);
   renderAdmin();
   if (state.pageTab === 'monthly') renderMonthly();
 
