@@ -725,12 +725,15 @@ body.auth-locked .app { display: none; }
   <div class="page-pane" data-pane="jobs" style="display:none;">
     <div id="jbEmpty" class="empty" style="display:none;"><span class="icon">○</span>求人別データ（data.json）がまだありません<div class="hint">Apps Scriptの自動更新後、または convert.py 実行後に表示されます</div></div>
     <div id="jbMain">
+      <div class="filter-bar" style="margin-bottom:16px;">
+        <div class="filter-group"><label>区分</label><div class="chip-group" id="jbCpChips"></div></div>
+      </div>
       <div class="section">
-        <div class="section-title"><span class="marker"></span>求人別<span class="ja">応募が発生した求人の実績（選択期間・応募順）</span></div>
+        <div class="section-title"><span class="marker"></span>求人別<span class="ja">応募が発生した求人の実績（選択期間・応募TOP）</span></div>
         <div class="card"><div class="chart-box"><canvas id="jbChart"></canvas></div></div>
       </div>
       <div class="section">
-        <div class="section-title"><span class="marker"></span>求人別 実績<span class="ja">表示・クリック・応募・コスト・応募単価</span></div>
+        <div class="section-title"><span class="marker"></span>求人別 実績<span class="ja">見出しクリックで並び替え（昇順／降順）</span></div>
         <div class="card"><div style="overflow-x:auto;"><table class="tbl" id="jbTable"></table></div></div>
       </div>
     </div>
@@ -2423,6 +2426,10 @@ function bootDashboard() {
 // ============== 広告コスト・求人別（data.json / Apps Scriptが自動更新） ==============
 let extData = null;
 const extCharts = {};
+let jbSort = { key: 'applies', dir: 'desc' };  // 求人別テーブルの並び替え
+let jbCp = 'all';                               // 求人別 区分(CP)フィルタ
+function jbSetSort(key) { if (jbSort.key === key) jbSort.dir = jbSort.dir === 'desc' ? 'asc' : 'desc'; else { jbSort.key = key; jbSort.dir = 'desc'; } renderJobs(); }
+function jbSetCp(cp) { jbCp = cp; renderJobs(); }
 function extMk(id, cfg) { const c = document.getElementById(id); if (!c) return; if (extCharts[id]) extCharts[id].destroy(); extCharts[id] = new Chart(c, cfg); }
 function ymSlash(ym) { ym = String(ym); return ym.length >= 6 ? ym.slice(0, 4) + '/' + ym.slice(4, 6) : ym; }
 function ymLabelJ(ym) { ym = String(ym); return ym.length >= 6 ? ym.slice(0, 4) + '年' + parseInt(ym.slice(4, 6), 10) + '月' : ym; }
@@ -2497,24 +2504,37 @@ function renderJobs() {
   if (!extData || !extData.jobs) { main.style.display = 'none'; if (empty) empty.style.display = ''; return; }
   main.style.display = ''; if (empty) empty.style.display = 'none';
   const { f, t } = periodYms();
-  const rows = extData.jobs.filter(j => (!f || j.ym >= f) && (!t || j.ym <= t));
+  const periodRows = extData.jobs.filter(j => (!f || j.ym >= f) && (!t || j.ym <= t));
+  // 区分(CP)の候補と絞り込みチップ
+  const cps = [...new Set(periodRows.map(j => j.cp || '(未分類)'))].sort();
+  if (jbCp !== 'all' && cps.indexOf(jbCp) < 0) jbCp = 'all';
+  const chips = document.getElementById('jbCpChips');
+  if (chips) chips.innerHTML = `<button class="chip ${jbCp === 'all' ? 'active' : ''}" onclick="jbSetCp('all')">すべて</button>` +
+    cps.map(c => `<button class="chip ${jbCp === c ? 'active' : ''}" onclick="jbSetCp('${String(c).replace(/'/g, "\\'")}')">${escapeHtml(c)}</button>`).join('');
+  const rows = jbCp === 'all' ? periodRows : periodRows.filter(j => (j.cp || '(未分類)') === jbCp);
+  // 求人別に集計
   const map = {};
   rows.forEach(j => { const a = map[j.title] || (map[j.title] = { title: j.title, cp: j.cp, loc: j.loc, imp: 0, click: 0, applyStart: 0, applies: 0, cost: 0 }); a.imp += j.imp; a.click += j.click; a.applyStart += j.applyStart; a.applies += j.applies; a.cost += j.cost; });
-  const list = Object.values(map).map(a => { a.cpc = a.click ? Math.round(a.cost / a.click) : 0; a.cpa = a.applies ? Math.round(a.cost / a.applies) : 0; return a; }).sort((a, b) => b.applies - a.applies);
-  // TOP12 応募 横棒
-  const top = list.slice(0, 12);
+  let list = Object.values(map).map(a => { a.cpc = a.click ? Math.round(a.cost / a.click) : 0; a.cpa = a.applies ? Math.round(a.cost / a.applies) : 0; return a; });
+  // 並び替え
+  const dir = jbSort.dir === 'asc' ? 1 : -1, k = jbSort.key;
+  list.sort((a, b) => (k === 'title' || k === 'cp') ? dir * String(a[k] || '').localeCompare(String(b[k] || ''), 'ja') : dir * ((a[k] || 0) - (b[k] || 0)));
+  // チャート：応募TOP12（常に応募降順）
+  const top = [...list].sort((a, b) => b.applies - a.applies).slice(0, 12);
   extMk('jbChart', {
     type: 'bar',
     data: { labels: top.map(a => a.title.length > 22 ? a.title.slice(0, 22) + '…' : a.title), datasets: [{ label: '応募', data: top.map(a => a.applies), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1, borderRadius: 4 }] },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10, callbacks: { title: c => top[c[0].dataIndex].title } } }, scales: { x: { beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: { size: 11 } } }, y: { grid: { display: false }, ticks: { color: '#1a2421', font: { family: 'Noto Sans JP', size: 10 } } } } }
   });
-  // 表
+  // 表（見出しクリックで並び替え）
   const tA = list.reduce((s, a) => s + a.applies, 0), tCost = list.reduce((s, a) => s + a.cost, 0), tClick = list.reduce((s, a) => s + a.click, 0), tImp = list.reduce((s, a) => s + a.imp, 0);
+  const arr = key => jbSort.key === key ? (jbSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
+  const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer; user-select:none;" onclick="jbSetSort('${key}')">${label}${arr(key)}</th>`;
   document.getElementById('jbTable').innerHTML = list.length ?
-    `<thead><tr><th>求人</th><th>区分</th><th class="num">表示</th><th class="num">クリック</th><th class="num">応募</th><th class="num">コスト</th><th class="num">応募単価</th></tr></thead><tbody>` +
+    `<thead><tr>${th('title', '求人', '')}${th('cp', '区分', '')}${th('imp', '表示', 'num')}${th('click', 'クリック', 'num')}${th('applies', '応募', 'num')}${th('cost', 'コスト', 'num')}${th('cpa', '応募単価', 'num')}</tr></thead><tbody>` +
     list.map(a => `<tr><td style="white-space:nowrap; max-width:340px; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(a.title)}">${escapeHtml(a.title)}</td><td>${escapeHtml(a.cp || '')}</td><td class="num">${fmtNum(a.imp)}</td><td class="num">${fmtNum(a.click)}</td><td class="num">${fmtNum(a.applies)}</td><td class="num">${fmtYen(a.cost)}</td><td class="num">${a.applies ? fmtYen(a.cpa) : '-'}</td></tr>`).join('') +
     `<tr style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td></td><td class="num"><b>${fmtNum(tImp)}</b></td><td class="num"><b>${fmtNum(tClick)}</b></td><td class="num"><b>${fmtNum(tA)}</b></td><td class="num"><b>${fmtYen(tCost)}</b></td><td class="num"><b>${tA ? fmtYen(Math.round(tCost / tA)) : '-'}</b></td></tr></tbody>` :
-    '<tbody><tr><td style="padding:24px; text-align:center; color:var(--text-faint);">この期間に応募が発生した求人はありません</td></tr></tbody>';
+    '<tbody><tr><td style="padding:24px; text-align:center; color:var(--text-faint);">該当する求人はありません</td></tr></tbody>';
 }
 
 // ============== クラウド同期 (Firestore) ==============
