@@ -1001,8 +1001,7 @@ function aggregate(rows) {
 // 数値フォーマット
 function fmtNum(n) { return n.toLocaleString('ja-JP'); }
 function fmtYen(n) {
-  if (n >= 10000) return (n / 10000).toFixed(n >= 100000 ? 0 : 1) + '万';
-  return n.toLocaleString('ja-JP');
+  return Math.round(n || 0).toLocaleString('ja-JP');
 }
 
 // ============== KPI ==============
@@ -1101,7 +1100,7 @@ function renderTrend(rows) {
   const applyData = months.map(m => byMonth[m].apply);
   const hireData = months.map(m => byMonth[m].hire);
   const rateData = months.map(m => byMonth[m].apply ? +(byMonth[m].hire/byMonth[m].apply*100).toFixed(1) : 0);
-  const revenueData = months.map(m => +(byMonth[m].revenue / 10000).toFixed(1));  // 万円
+  const revenueData = months.map(m => Math.round(byMonth[m].revenue));  // 円
   const cpaData = months.map(m => byMonth[m].hire ? Math.round(byMonth[m].revenue / byMonth[m].hire) : 0);  // 円/件
 
   const commonTickFont = { family: 'Noto Sans JP', size: 11 };
@@ -1180,12 +1179,12 @@ function renderTrend(rows) {
       labels: months,
       datasets: [
         {
-          type: 'bar', label: '売上(万円)', data: revenueData,
+          type: 'bar', label: '売上(円)', data: revenueData,
           backgroundColor: 'rgba(30, 175, 117, 0.75)', borderColor: MINT, borderWidth: 1.5,
           borderRadius: 5, yAxisID: 'yRev', order: 2,
         },
         {
-          type: 'line', label: '1件単価(万円)', data: cpaData.map(v => +(v/10000).toFixed(1)),
+          type: 'line', label: '1件単価(円)', data: cpaData,
           borderColor: '#d49a2a', backgroundColor: 'rgba(212, 154, 42, 0.1)',
           borderWidth: 2.5, tension: 0.3, pointRadius: 5, pointHoverRadius: 7,
           pointBackgroundColor: '#d49a2a', yAxisID: 'yCpa', order: 1, fill: false,
@@ -1202,8 +1201,8 @@ function renderTrend(rows) {
           titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10,
           callbacks: {
             label: c => {
-              if (c.dataset.label === '1件単価(万円)') return ` 単価: ${c.parsed.y}万円`;
-              return ` 売上: ${c.parsed.y}万円`;
+              const lbl = c.dataset.label === '1件単価(円)' ? '単価' : '売上';
+              return ` ${lbl}: ¥${Math.round(c.parsed.y).toLocaleString('ja-JP')}`;
             }
           }
         },
@@ -1212,13 +1211,13 @@ function renderTrend(rows) {
         x: { ticks: { color: '#5a6862' }, grid: { display: false } },
         yRev: {
           type: 'linear', position: 'left', beginAtZero: true,
-          ticks: { color: '#5a6862', font: commonTickFont, callback: v => v + '万' },
+          ticks: { color: '#5a6862', font: commonTickFont, callback: v => '¥' + v.toLocaleString('ja-JP') },
           grid: { color: '#e6ecea' },
           title: { display: true, text: '売上', color: '#8a9690', font: { size: 11 } }
         },
         yCpa: {
           type: 'linear', position: 'right', beginAtZero: true,
-          ticks: { color: '#d49a2a', font: commonTickFont, callback: v => v + '万' },
+          ticks: { color: '#d49a2a', font: commonTickFont, callback: v => '¥' + v.toLocaleString('ja-JP') },
           grid: { display: false },
           title: { display: true, text: '1件単価', color: '#d49a2a', font: { size: 11 } }
         },
@@ -1836,7 +1835,7 @@ function renderRevenueStack(rows) {
 
   const datasets = sortedMedias.map(md => ({
     label: md,
-    data: months.map(m => +((byMonth[m][md] || 0) / 10000).toFixed(1)),
+    data: months.map(m => Math.round(byMonth[m][md] || 0)),
     backgroundColor: MEDIA_COLORS[md] || '#7a8589',
     borderColor: MEDIA_COLORS[md] || '#7a8589',
     borderWidth: 0,
@@ -1860,10 +1859,10 @@ function renderRevenueStack(rows) {
         tooltip: {
           backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10,
           callbacks: {
-            label: c => ` ${c.dataset.label}: ${c.parsed.y.toLocaleString()}万円`,
+            label: c => ` ${c.dataset.label}: ¥${Math.round(c.parsed.y).toLocaleString('ja-JP')}`,
             footer: items => {
               const total = items.reduce((s, it) => s + it.parsed.y, 0);
-              return `合計: ${total.toLocaleString(undefined, {maximumFractionDigits:1})}万円`;
+              return `合計: ¥${Math.round(total).toLocaleString('ja-JP')}`;
             }
           }
         },
@@ -1872,9 +1871,9 @@ function renderRevenueStack(rows) {
         x: { stacked: true, ticks: { color: '#5a6862' }, grid: { display: false } },
         y: {
           stacked: true, beginAtZero: true,
-          ticks: { color: '#5a6862', callback: v => v + '万' },
+          ticks: { color: '#5a6862', callback: v => '¥' + v.toLocaleString('ja-JP') },
           grid: { color: '#e6ecea' },
-          title: { display: true, text: '売上（万円）', color: '#8a9690', font: { size: 11 } }
+          title: { display: true, text: '売上', color: '#8a9690', font: { size: 11 } }
         },
       },
     }
@@ -1899,7 +1898,7 @@ function renderRevenueByEmp(rows) {
   // 売上順
   const entries = Object.entries(map).sort((a,b) => b[1].revenue - a[1].revenue);
   const labels = entries.map(([k]) => k);
-  const revenueData = entries.map(([_,v]) => +(v.revenue / 10000).toFixed(1));
+  const revenueData = entries.map(([_,v]) => Math.round(v.revenue));
   const colors = labels.map(l => EMP_COLORS[l] || '#7a8589');
 
   const ctx = document.getElementById('revenueByEmpChart');
@@ -1914,7 +1913,7 @@ function renderRevenueByEmp(rows) {
     data: {
       labels,
       datasets: [{
-        label: '売上（万円）',
+        label: '売上',
         data: revenueData,
         backgroundColor: colors,
         borderColor: colors,
@@ -1934,7 +1933,7 @@ function renderRevenueByEmp(rows) {
               const e = entries[c.dataIndex];
               const avg = e[1].count ? Math.round(e[1].revenue / e[1].count) : 0;
               return [
-                ` 売上: ${c.parsed.x.toLocaleString()}万円`,
+                ` 売上: ¥${Math.round(c.parsed.x).toLocaleString('ja-JP')}`,
                 ` 採用数: ${e[1].count}名`,
                 ` 平均単価: ${fmtYen(avg)}円`,
               ];
@@ -1945,9 +1944,9 @@ function renderRevenueByEmp(rows) {
       scales: {
         x: {
           beginAtZero: true,
-          ticks: { color: '#5a6862', callback: v => v + '万' },
+          ticks: { color: '#5a6862', callback: v => '¥' + v.toLocaleString('ja-JP') },
           grid: { color: '#e6ecea' },
-          title: { display: true, text: '売上（万円）', color: '#8a9690', font: { size: 11 } }
+          title: { display: true, text: '売上', color: '#8a9690', font: { size: 11 } }
         },
         y: { ticks: { color: '#1a2421', font: { size: 12, weight: '600' } }, grid: { display: false } },
       },
@@ -2460,21 +2459,21 @@ function renderAdCost() {
     { cls: '--hire', label: 'クリック単価', value: fmtYen(cpc), unit: '円' },
   ];
   document.getElementById('acKpi').innerHTML = kpis.map(i => `<div class="kpi ${i.cls}"><div class="label">${i.label}</div><div class="value">${i.value}${i.unit ? `<span class="unit">${i.unit}</span>` : ''}</div></div>`).join('');
-  // 推移: 消化(棒・万円) + CPA(線)
+  // 推移: 消化(棒・円) + CPA(線)
   const labels = rows.map(a => ymLabelJ(a.ym));
   extMk('acTrend', {
     data: {
       labels,
       datasets: [
-        { type: 'bar', label: '消化(万円)', data: rows.map(a => +((a.cost || 0) / 10000).toFixed(1)), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1.5, borderRadius: 5, yAxisID: 'y' },
-        { type: 'bar', label: '予算(万円)', data: rows.map(a => +((a.budget || 0) / 10000).toFixed(1)), backgroundColor: 'rgba(74,144,196,0.35)', borderColor: '#4a90c4', borderWidth: 1, borderRadius: 5, yAxisID: 'y' },
+        { type: 'bar', label: '消化(円)', data: rows.map(a => a.cost || 0), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1.5, borderRadius: 5, yAxisID: 'y' },
+        { type: 'bar', label: '予算(円)', data: rows.map(a => a.budget || 0), backgroundColor: 'rgba(74,144,196,0.35)', borderColor: '#4a90c4', borderWidth: 1, borderRadius: 5, yAxisID: 'y' },
         { type: 'line', label: 'CPA(円)', data: rows.map(a => a.cv ? Math.round(a.cost / a.cv) : 0), borderColor: '#d49a2a', backgroundColor: '#d49a2a', borderWidth: 2.5, tension: 0.3, pointRadius: 4, yAxisID: 'yR', fill: false },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { position: 'bottom', labels: { color: '#5a6862', font: { family: 'Noto Sans JP', size: 11 }, boxWidth: 12, padding: 10 } }, tooltip: { backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10 } },
-      scales: { x: { grid: { display: false }, ticks: { color: '#5a6862', font: { size: 11 } } }, y: { position: 'left', beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: { size: 11 }, callback: v => v + '万' } }, yR: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#d49a2a', font: { size: 11 }, callback: v => '¥' + v } } }
+      plugins: { legend: { position: 'bottom', labels: { color: '#5a6862', font: { family: 'Noto Sans JP', size: 11 }, boxWidth: 12, padding: 10 } }, tooltip: { backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10, callbacks: { label: c => ` ${c.dataset.label.replace('(円)','')}: ¥${Math.round(c.parsed.y).toLocaleString('ja-JP')}` } } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#5a6862', font: { size: 11 } } }, y: { position: 'left', beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: { size: 11 }, callback: v => '¥' + v.toLocaleString('ja-JP') } }, yR: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#d49a2a', font: { size: 11 }, callback: v => '¥' + v.toLocaleString('ja-JP') } } }
     }
   });
   // 月別明細表
