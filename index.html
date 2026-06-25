@@ -371,10 +371,19 @@ body.auth-locked .app { display: none; }
 .auth-btn:hover { background: var(--mint-600); }
 .auth-btn:disabled { background: var(--mint-300); cursor: default; }
 .auth-error { margin-top: 14px; font-size: 12px; color: var(--danger); min-height: 16px; text-align: center; }
+.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+.header-actions .last-updated { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+.btn-refresh {
+  background: var(--mint-500); color: #fff; border: 1px solid var(--mint-500);
+  padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;
+  font-family: inherit; font-weight: 700; white-space: nowrap;
+}
+.btn-refresh:hover { background: var(--mint-600); border-color: var(--mint-600); }
+.btn-refresh:disabled { opacity: 0.6; cursor: default; }
 .auth-logout {
   background: transparent; color: var(--text-dim); border: 1px solid var(--border-strong);
   padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 11px;
-  font-family: inherit; font-weight: 600; margin-top: 8px;
+  font-family: inherit; font-weight: 600; white-space: nowrap;
 }
 .auth-logout:hover { color: var(--mint-600); border-color: var(--mint-300); background: var(--mint-50); }
 
@@ -448,21 +457,13 @@ body.auth-locked .app { display: none; }
     <div class="header-right">
       <div class="label">DATA RANGE</div>
       <div class="value" id="dataRange">—</div>
-      <button id="logoutBtn" class="auth-logout" style="display:none;">ログアウト</button>
+      <div class="header-actions">
+        <span class="last-updated">更新 <span id="lastUpdated">—</span></span>
+        <button id="refreshBtn" class="btn-refresh">最新情報へ更新</button>
+        <button id="logoutBtn" class="auth-logout" style="display:none;">ログアウト</button>
+      </div>
     </div>
   </header>
-
-  <div class="upload-zone" id="dropZone">
-    <span class="icon">⤴</span>
-    <div class="text">
-      <div class="label">ZOHO応募者CSVをアップロード</div>
-      <div class="hint">月別CSV（複数可）をドラッグ&ドロップ、または「ファイルを選択」</div>
-    </div>
-    <span class="upload-status" id="uploadStatus">サンプルデータ（2025年11月〜2026年3月／329件）を表示中</span>
-    <button class="btn-ghost" id="resetBtn">サンプルに戻す</button>
-    <label class="btn-primary" for="csvInput">ファイルを選択</label>
-    <input type="file" id="csvInput" accept=".csv" multiple>
-  </div>
 
   <div class="page-tabs">
     <button class="page-tab active" data-pagetab="dashboard">
@@ -740,6 +741,20 @@ body.auth-locked .app { display: none; }
   </div><!-- /page-pane jobs -->
 
   <div class="page-pane" data-pane="admin" style="display:none;">
+    <div class="section">
+      <div class="section-title"><span class="marker"></span>UPLOAD<span class="ja">ZOHO応募者CSVの取り込み</span></div>
+      <div class="upload-zone" id="dropZone" style="margin-bottom:0;">
+        <span class="icon">⤴</span>
+        <div class="text">
+          <div class="label">ZOHO応募者CSVをアップロード</div>
+          <div class="hint">月別CSV（複数可）をドラッグ&ドロップ、または「ファイルを選択」</div>
+        </div>
+        <span class="upload-status" id="uploadStatus">サンプルデータ（2025年11月〜2026年3月／329件）を表示中</span>
+        <button class="btn-ghost" id="resetBtn">サンプルに戻す</button>
+        <label class="btn-primary" for="csvInput">ファイルを選択</label>
+        <input type="file" id="csvInput" accept=".csv" multiple>
+      </div>
+    </div>
     <div class="section">
       <div class="section-title"><span class="marker"></span>DATA<span class="ja">データ管理</span></div>
       <div class="card">
@@ -2028,7 +2043,14 @@ function renderStatus(rows) {
 }
 
 // ============== Render All ==============
+function fmtNowJp() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function setLastUpdated() { const el = document.getElementById('lastUpdated'); if (el) el.textContent = fmtNowJp(); }
+
 function renderAll() {
+  setLastUpdated();
   // 全タブ共通の期間（上部バー）を整える
   const mAll = [...new Set(allData.map(r => r.ym))].sort();
   if (mAll.length) {
@@ -2851,6 +2873,13 @@ const LOGIN_ID_DOMAIN = 'dashboard.local';
 
   logoutBtn.addEventListener('click', () => {
     firebase.auth().signOut().then(() => location.reload());
+  });
+
+  const refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+    refreshBtn.disabled = true; const orig = refreshBtn.textContent; refreshBtn.textContent = '更新中…';
+    try { await fetchExtData(); renderAll(); }
+    finally { setLastUpdated(); refreshBtn.disabled = false; refreshBtn.textContent = orig; }
   });
 })();
 </script>
