@@ -477,6 +477,14 @@ body.auth-locked .app { display: none; }
       <span class="page-tab-icon">⊞</span>
       クロス集計・売上分析
     </button>
+    <button class="page-tab" data-pagetab="adcost">
+      <span class="page-tab-icon">¥</span>
+      広告コスト
+    </button>
+    <button class="page-tab" data-pagetab="jobs">
+      <span class="page-tab-icon">▥</span>
+      求人別
+    </button>
     <button class="page-tab" data-pagetab="admin">
       <span class="page-tab-icon">⚙</span>
       管理
@@ -695,6 +703,38 @@ body.auth-locked .app { display: none; }
   </div>
 
   </div><!-- /page-pane crosstab -->
+
+  <div class="page-pane" data-pane="adcost" style="display:none;">
+    <div id="acEmpty" class="empty" style="display:none;"><span class="icon">○</span>広告データ（data.json）がまだありません<div class="hint">Apps Scriptの自動更新後、または convert.py 実行後に表示されます</div></div>
+    <div id="acMain">
+      <div class="section">
+        <div class="section-title"><span class="marker"></span>広告コスト<span class="ja">Indeed 予算・消化・CPA（選択期間）</span></div>
+        <div class="card"><div class="kpi-grid" id="acKpi"></div></div>
+      </div>
+      <div class="section">
+        <div class="section-title"><span class="marker"></span>TREND<span class="ja">月別 消化・CPA の推移</span></div>
+        <div class="card"><div class="chart-box"><canvas id="acTrend"></canvas></div></div>
+      </div>
+      <div class="split-grid">
+        <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">月別 明細</div><div style="overflow-x:auto;"><table class="tbl" id="acTable"></table></div></div>
+        <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">キャンペーン別（期間合計）</div><div style="overflow-x:auto;"><table class="tbl" id="acCampTable"></table></div></div>
+      </div>
+    </div>
+  </div><!-- /page-pane adcost -->
+
+  <div class="page-pane" data-pane="jobs" style="display:none;">
+    <div id="jbEmpty" class="empty" style="display:none;"><span class="icon">○</span>求人別データ（data.json）がまだありません<div class="hint">Apps Scriptの自動更新後、または convert.py 実行後に表示されます</div></div>
+    <div id="jbMain">
+      <div class="section">
+        <div class="section-title"><span class="marker"></span>求人別<span class="ja">応募が発生した求人の実績（選択期間・応募順）</span></div>
+        <div class="card"><div class="chart-box"><canvas id="jbChart"></canvas></div></div>
+      </div>
+      <div class="section">
+        <div class="section-title"><span class="marker"></span>求人別 実績<span class="ja">表示・クリック・応募・コスト・応募単価</span></div>
+        <div class="card"><div style="overflow-x:auto;"><table class="tbl" id="jbTable"></table></div></div>
+      </div>
+    </div>
+  </div><!-- /page-pane jobs -->
 
   <div class="page-pane" data-pane="admin" style="display:none;">
     <div class="section">
@@ -2016,6 +2056,7 @@ function renderAll() {
   renderStatus(rows);
   renderAdmin();
   if (state.pageTab === 'monthly') renderMonthly();
+  renderExt();
 
   const months = [...new Set(allData.map(r=>r.ym))].sort();
   if (months.length) {
@@ -2150,6 +2191,9 @@ function setupTabs() {
       }
       if (state.pageTab === 'monthly') {
         renderMonthly();
+      }
+      if (state.pageTab === 'adcost' || state.pageTab === 'jobs') {
+        renderExt();
       }
     });
   });
@@ -2374,6 +2418,104 @@ function bootDashboard() {
   setupMonthly();
   renderAll();
   initDataSync();   // クラウド（Firestore）同期を開始
+  fetchExtData();   // 広告コスト・求人別（data.json）を取得
+}
+
+// ============== 広告コスト・求人別（data.json / Apps Scriptが自動更新） ==============
+let extData = null;
+const extCharts = {};
+function extMk(id, cfg) { const c = document.getElementById(id); if (!c) return; if (extCharts[id]) extCharts[id].destroy(); extCharts[id] = new Chart(c, cfg); }
+function ymSlash(ym) { ym = String(ym); return ym.length >= 6 ? ym.slice(0, 4) + '/' + ym.slice(4, 6) : ym; }
+function ymLabelJ(ym) { ym = String(ym); return ym.length >= 6 ? ym.slice(0, 4) + '年' + parseInt(ym.slice(4, 6), 10) + '月' : ym; }
+function periodYms() { return { f: (state.periodFrom || '').replace('-', ''), t: (state.periodTo || '').replace('-', '') }; }
+async function fetchExtData() {
+  try {
+    const res = await fetch('data.json?cb=' + Date.now(), { cache: 'no-store' });
+    if (res.ok) extData = await res.json();
+  } catch (e) { extData = null; }
+  renderExt();
+}
+function renderExt() {
+  if (state.pageTab === 'adcost') renderAdCost();
+  if (state.pageTab === 'jobs') renderJobs();
+}
+
+function renderAdCost() {
+  const main = document.getElementById('acMain'), empty = document.getElementById('acEmpty');
+  if (!main) return;
+  if (!extData || !extData.adCost) { main.style.display = 'none'; if (empty) empty.style.display = ''; return; }
+  main.style.display = ''; if (empty) empty.style.display = 'none';
+  const { f, t } = periodYms();
+  const rows = extData.adCost.filter(a => (!f || a.ym >= f) && (!t || a.ym <= t)).sort((a, b) => a.ym < b.ym ? -1 : 1);
+  const sum = k => rows.reduce((s, a) => s + (a[k] || 0), 0);
+  const budget = sum('budget'), cost = sum('cost'), cv = sum('cv'), click = sum('click'), imp = sum('imp');
+  const cpa = cv ? Math.round(cost / cv) : 0, cpc = click ? Math.round(cost / click) : 0;
+  const useRate = budget ? Math.round(cost / budget * 100) : 0, cvr = click ? (cv / click * 100).toFixed(1) : 0;
+  const kpis = [
+    { cls: '--apply', label: '予算', value: fmtYen(budget), unit: '円' },
+    { cls: '--revenue', label: '消化', value: fmtYen(cost), unit: '円' },
+    { cls: '--meeting', label: '消化率', value: useRate + '%', unit: '' },
+    { cls: '--contact', label: '応募完了(CV)', value: fmtNum(cv), unit: '' },
+    { cls: '--interview', label: 'CPA', value: fmtYen(cpa), unit: '円' },
+    { cls: '--hire', label: 'クリック単価', value: fmtYen(cpc), unit: '円' },
+  ];
+  document.getElementById('acKpi').innerHTML = kpis.map(i => `<div class="kpi ${i.cls}"><div class="label">${i.label}</div><div class="value">${i.value}${i.unit ? `<span class="unit">${i.unit}</span>` : ''}</div></div>`).join('');
+  // 推移: 消化(棒・万円) + CPA(線)
+  const labels = rows.map(a => ymLabelJ(a.ym));
+  extMk('acTrend', {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: '消化(万円)', data: rows.map(a => +((a.cost || 0) / 10000).toFixed(1)), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1.5, borderRadius: 5, yAxisID: 'y' },
+        { type: 'bar', label: '予算(万円)', data: rows.map(a => +((a.budget || 0) / 10000).toFixed(1)), backgroundColor: 'rgba(74,144,196,0.35)', borderColor: '#4a90c4', borderWidth: 1, borderRadius: 5, yAxisID: 'y' },
+        { type: 'line', label: 'CPA(円)', data: rows.map(a => a.cv ? Math.round(a.cost / a.cv) : 0), borderColor: '#d49a2a', backgroundColor: '#d49a2a', borderWidth: 2.5, tension: 0.3, pointRadius: 4, yAxisID: 'yR', fill: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { color: '#5a6862', font: { family: 'Noto Sans JP', size: 11 }, boxWidth: 12, padding: 10 } }, tooltip: { backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10 } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#5a6862', font: { size: 11 } } }, y: { position: 'left', beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: { size: 11 }, callback: v => v + '万' } }, yR: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#d49a2a', font: { size: 11 }, callback: v => '¥' + v } } }
+    }
+  });
+  // 月別明細表
+  document.getElementById('acTable').innerHTML =
+    `<thead><tr><th>月</th><th class="num">予算</th><th class="num">消化</th><th class="num">消化率</th><th class="num">CV</th><th class="num">CPA</th></tr></thead><tbody>` +
+    rows.map(a => `<tr><td>${ymLabelJ(a.ym)}</td><td class="num">${fmtYen(a.budget || 0)}</td><td class="num">${fmtYen(a.cost || 0)}</td><td class="num">${a.budget ? Math.round(a.cost / a.budget * 100) : 0}%</td><td class="num">${fmtNum(a.cv || 0)}</td><td class="num">${a.cv ? fmtYen(Math.round(a.cost / a.cv)) : '-'}</td></tr>`).join('') +
+    `<tr class="" style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td class="num"><b>${fmtYen(budget)}</b></td><td class="num"><b>${fmtYen(cost)}</b></td><td class="num"><b>${useRate}%</b></td><td class="num"><b>${fmtNum(cv)}</b></td><td class="num"><b>${cpa ? fmtYen(cpa) : '-'}</b></td></tr></tbody>`;
+  // キャンペーン別（期間合計）
+  const camp = {};
+  rows.forEach(a => (a.campaigns || []).forEach(c => { const k = c.type || '(不明)'; const m = camp[k] || (camp[k] = { cost: 0, cv: 0, click: 0 }); m.cost += c.cost || 0; m.cv += c.cv || 0; m.click += c.click || 0; }));
+  const clist = Object.entries(camp).sort((a, b) => b[1].cost - a[1].cost);
+  document.getElementById('acCampTable').innerHTML = clist.length ?
+    `<thead><tr><th>キャンペーン</th><th class="num">消化</th><th class="num">CV</th><th class="num">CPA</th></tr></thead><tbody>` +
+    clist.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="num">${fmtYen(v.cost)}</td><td class="num">${fmtNum(v.cv)}</td><td class="num">${v.cv ? fmtYen(Math.round(v.cost / v.cv)) : '-'}</td></tr>`).join('') + `</tbody>` :
+    '<tbody><tr><td style="padding:20px; text-align:center; color:var(--text-faint);">キャンペーン内訳なし</td></tr></tbody>';
+}
+
+function renderJobs() {
+  const main = document.getElementById('jbMain'), empty = document.getElementById('jbEmpty');
+  if (!main) return;
+  if (!extData || !extData.jobs) { main.style.display = 'none'; if (empty) empty.style.display = ''; return; }
+  main.style.display = ''; if (empty) empty.style.display = 'none';
+  const { f, t } = periodYms();
+  const rows = extData.jobs.filter(j => (!f || j.ym >= f) && (!t || j.ym <= t));
+  const map = {};
+  rows.forEach(j => { const a = map[j.title] || (map[j.title] = { title: j.title, cp: j.cp, loc: j.loc, imp: 0, click: 0, applyStart: 0, applies: 0, cost: 0 }); a.imp += j.imp; a.click += j.click; a.applyStart += j.applyStart; a.applies += j.applies; a.cost += j.cost; });
+  const list = Object.values(map).map(a => { a.cpc = a.click ? Math.round(a.cost / a.click) : 0; a.cpa = a.applies ? Math.round(a.cost / a.applies) : 0; return a; }).sort((a, b) => b.applies - a.applies);
+  // TOP12 応募 横棒
+  const top = list.slice(0, 12);
+  extMk('jbChart', {
+    type: 'bar',
+    data: { labels: top.map(a => a.title.length > 22 ? a.title.slice(0, 22) + '…' : a.title), datasets: [{ label: '応募', data: top.map(a => a.applies), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1, borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#fff', borderColor: '#d0d9d4', borderWidth: 1, titleColor: '#1a2421', bodyColor: '#1a2421', padding: 10, callbacks: { title: c => top[c[0].dataIndex].title } } }, scales: { x: { beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: { size: 11 } } }, y: { grid: { display: false }, ticks: { color: '#1a2421', font: { family: 'Noto Sans JP', size: 10 } } } } }
+  });
+  // 表
+  const tA = list.reduce((s, a) => s + a.applies, 0), tCost = list.reduce((s, a) => s + a.cost, 0), tClick = list.reduce((s, a) => s + a.click, 0), tImp = list.reduce((s, a) => s + a.imp, 0);
+  document.getElementById('jbTable').innerHTML = list.length ?
+    `<thead><tr><th>求人</th><th>区分</th><th class="num">表示</th><th class="num">クリック</th><th class="num">応募</th><th class="num">コスト</th><th class="num">応募単価</th></tr></thead><tbody>` +
+    list.map(a => `<tr><td style="white-space:nowrap; max-width:340px; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(a.title)}">${escapeHtml(a.title)}</td><td>${escapeHtml(a.cp || '')}</td><td class="num">${fmtNum(a.imp)}</td><td class="num">${fmtNum(a.click)}</td><td class="num">${fmtNum(a.applies)}</td><td class="num">${fmtYen(a.cost)}</td><td class="num">${a.applies ? fmtYen(a.cpa) : '-'}</td></tr>`).join('') +
+    `<tr style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td></td><td class="num"><b>${fmtNum(tImp)}</b></td><td class="num"><b>${fmtNum(tClick)}</b></td><td class="num"><b>${fmtNum(tA)}</b></td><td class="num"><b>${fmtYen(tCost)}</b></td><td class="num"><b>${tA ? fmtYen(Math.round(tCost / tA)) : '-'}</b></td></tr></tbody>` :
+    '<tbody><tr><td style="padding:24px; text-align:center; color:var(--text-faint);">この期間に応募が発生した求人はありません</td></tr></tbody>';
 }
 
 // ============== クラウド同期 (Firestore) ==============
