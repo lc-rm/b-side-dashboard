@@ -726,7 +726,7 @@ body.auth-locked .app { display: none; }
     <div id="jbEmpty" class="empty" style="display:none;"><span class="icon">○</span>求人別データ（data.json）がまだありません<div class="hint">Apps Scriptの自動更新後、または convert.py 実行後に表示されます</div></div>
     <div id="jbMain">
       <div class="filter-bar" style="margin-bottom:16px;">
-        <div class="filter-group"><label>区分</label><div class="chip-group" id="jbCpChips"></div></div>
+        <div class="filter-group"><label>区分で絞り込み</label><select id="jbCpSel" onchange="jbSetCp(this.value)"></select></div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>求人別<span class="ja">応募が発生した求人の実績（選択期間・応募TOP）</span></div>
@@ -2505,12 +2505,14 @@ function renderJobs() {
   main.style.display = ''; if (empty) empty.style.display = 'none';
   const { f, t } = periodYms();
   const periodRows = extData.jobs.filter(j => (!f || j.ym >= f) && (!t || j.ym <= t));
-  // 区分(CP)の候補と絞り込みチップ
-  const cps = [...new Set(periodRows.map(j => j.cp || '(未分類)'))].sort();
+  // 区分(CP)の候補（出現件数つき）→ 絞り込みプルダウン
+  const cpCount = {};
+  periodRows.forEach(j => { const c = j.cp || '(未分類)'; cpCount[c] = (cpCount[c] || 0) + 1; });
+  const cps = Object.keys(cpCount).sort((a, b) => a.localeCompare(b, 'ja'));
   if (jbCp !== 'all' && cps.indexOf(jbCp) < 0) jbCp = 'all';
-  const chips = document.getElementById('jbCpChips');
-  if (chips) chips.innerHTML = `<button class="chip ${jbCp === 'all' ? 'active' : ''}" onclick="jbSetCp('all')">すべて</button>` +
-    cps.map(c => `<button class="chip ${jbCp === c ? 'active' : ''}" onclick="jbSetCp('${String(c).replace(/'/g, "\\'")}')">${escapeHtml(c)}</button>`).join('');
+  const sel = document.getElementById('jbCpSel');
+  if (sel) sel.innerHTML = `<option value="all">すべての区分（${periodRows.length}）</option>` +
+    cps.map(c => `<option value="${escapeHtml(c)}"${jbCp === c ? ' selected' : ''}>${escapeHtml(c)}（${cpCount[c]}）</option>`).join('');
   const rows = jbCp === 'all' ? periodRows : periodRows.filter(j => (j.cp || '(未分類)') === jbCp);
   // 求人別に集計
   const map = {};
