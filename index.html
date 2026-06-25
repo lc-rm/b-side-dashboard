@@ -483,14 +483,34 @@ body.auth-locked .app { display: none; }
     </button>
   </div>
 
-  <div class="page-pane" data-pane="dashboard">
-  <div class="filter-bar">
+  <!-- 全タブ共通の期間フィルタ -->
+  <div class="filter-bar" id="globalPeriodBar" style="margin-bottom:22px;">
     <div class="filter-group">
       <label>期間</label>
-      <select id="periodFrom"></select>
-      <span class="period-sep">〜</span>
-      <select id="periodTo"></select>
+      <div class="chip-group" id="moPresets">
+        <button class="chip" data-preset="cur">当月</button>
+        <button class="chip" data-preset="prev">前月</button>
+        <button class="chip active" data-preset="all">全期間</button>
+        <button class="chip" data-preset="12">直近12ヶ月</button>
+        <button class="chip" data-preset="6">直近6ヶ月</button>
+        <button class="chip" data-preset="3">直近3ヶ月</button>
+      </div>
     </div>
+    <div class="filter-group">
+      <label>期間指定</label>
+      <button class="chip btn-mini" id="moShiftL" title="前へ">◀</button>
+      <select id="moFrom"></select>
+      <span class="period-sep">〜</span>
+      <select id="moTo"></select>
+      <button class="chip btn-mini" id="moShiftR" title="次へ">▶</button>
+    </div>
+    <div class="filter-group" style="margin-left:auto;">
+      <span id="moRangeLabel" style="font-size:11px; color:var(--text-dim);"></span>
+    </div>
+  </div>
+
+  <div class="page-pane" data-pane="dashboard">
+  <div class="filter-bar">
     <div class="filter-group">
       <label>媒体</label>
       <div class="chip-group" id="mediaChips"></div>
@@ -594,30 +614,6 @@ body.auth-locked .app { display: none; }
   </div><!-- /page-pane dashboard -->
 
   <div class="page-pane" data-pane="monthly" style="display:none;">
-    <div class="filter-bar">
-      <div class="filter-group">
-        <label>期間</label>
-        <div class="chip-group" id="moPresets">
-          <button class="chip" data-preset="cur">当月</button>
-          <button class="chip" data-preset="prev">前月</button>
-          <button class="chip active" data-preset="all">全期間</button>
-          <button class="chip" data-preset="12">直近12ヶ月</button>
-          <button class="chip" data-preset="6">直近6ヶ月</button>
-          <button class="chip" data-preset="3">直近3ヶ月</button>
-        </div>
-      </div>
-      <div class="filter-group">
-        <label>期間指定</label>
-        <button class="chip btn-mini" id="moShiftL" title="前へ">◀</button>
-        <select id="moFrom"></select>
-        <span class="period-sep">〜</span>
-        <select id="moTo"></select>
-        <button class="chip btn-mini" id="moShiftR" title="次へ">▶</button>
-      </div>
-      <div class="filter-group" style="margin-left:auto;">
-        <span id="moRangeLabel" style="font-size:11px; color:var(--text-dim);"></span>
-      </div>
-    </div>
     <div id="monthlyEmpty" class="empty" style="display:none;"><span class="icon">○</span>データがありません<div class="hint">CSVをアップロードしてください</div></div>
     <div id="monthlyMain">
       <div class="section">
@@ -664,14 +660,6 @@ body.auth-locked .app { display: none; }
   </div><!-- /page-pane monthly -->
 
   <div class="page-pane" data-pane="crosstab" style="display:none;">
-  <div class="filter-bar">
-    <div class="filter-group">
-      <label>期間</label>
-      <select id="ctPeriodFrom"></select>
-      <span class="period-sep">〜</span>
-      <select id="ctPeriodTo"></select>
-    </div>
-  </div>
 
   <div class="section">
     <div class="section-title"><span class="marker"></span>CROSS-TAB<span class="ja">媒体・雇用形態・職種のクロス集計</span></div>
@@ -1999,6 +1987,13 @@ function renderStatus(rows) {
 
 // ============== Render All ==============
 function renderAll() {
+  // 全タブ共通の期間（上部バー）を整える
+  const mAll = [...new Set(allData.map(r => r.ym))].sort();
+  if (mAll.length) {
+    if (!state.periodFrom || !mAll.includes(state.periodFrom)) state.periodFrom = mAll[0];
+    if (!state.periodTo || !mAll.includes(state.periodTo)) state.periodTo = mAll[mAll.length - 1];
+    if (typeof updatePeriodUI === 'function') updatePeriodUI();
+  }
   const rows = getFiltered();
   renderKpi(rows);
   renderFunnel(rows);
@@ -2022,10 +2017,6 @@ function renderAll() {
   renderAdmin();
   if (state.pageTab === 'monthly') renderMonthly();
 
-  // 期間コントロールを全タブで同期（共通の state.periodFrom/To に合わせる）
-  ['periodFrom', 'ctPeriodFrom', 'moFrom'].forEach(id => { const el = document.getElementById(id); if (el && state.periodFrom) el.value = state.periodFrom; });
-  ['periodTo', 'ctPeriodTo', 'moTo'].forEach(id => { const el = document.getElementById(id); if (el && state.periodTo) el.value = state.periodTo; });
-
   const months = [...new Set(allData.map(r=>r.ym))].sort();
   if (months.length) {
     document.getElementById('dataRange').textContent = `${months[0]} 〜 ${months[months.length-1]}（全 ${allData.length.toLocaleString()} 件）`;
@@ -2035,26 +2026,10 @@ function renderAll() {
 // ============== Filter UI ==============
 function rebuildFilters() {
   const periods = [...new Set(allData.map(r=>r.ym))].sort();
-  const selFrom = document.getElementById('periodFrom');
-  const selTo = document.getElementById('periodTo');
-  const opts = periods.map(p => `<option value="${p}">${p}</option>`).join('');
-  selFrom.innerHTML = opts;
-  selTo.innerHTML = opts;
-  // 範囲初期値：全期間
+  // 期間は全タブ共通（上部の共通バー）。初期値=全期間、セレクトは moFrom/moTo を使う
   if (!state.periodFrom || !periods.includes(state.periodFrom)) state.periodFrom = periods[0];
   if (!state.periodTo || !periods.includes(state.periodTo)) state.periodTo = periods[periods.length - 1];
-  selFrom.value = state.periodFrom;
-  selTo.value = state.periodTo;
-
-  // クロス集計タブ用の期間セレクト
-  const ctFrom = document.getElementById('ctPeriodFrom');
-  const ctTo = document.getElementById('ctPeriodTo');
-  if (ctFrom && ctTo) {
-    ctFrom.innerHTML = opts;
-    ctTo.innerHTML = opts;
-    ctFrom.value = state.periodFrom;
-    ctTo.value = state.periodTo;
-  }
+  if (periods.length) { populateMonthSelects(periods); updatePeriodUI(); }
 
   const medias = [...new Set(allData.map(r=>r.media || '(未設定)'))];
   document.getElementById('mediaChips').innerHTML = `<button class="chip ${state.media.has('all')?'active':''}" data-v="all">すべて</button>` +
@@ -2066,38 +2041,7 @@ function rebuildFilters() {
 }
 
 function setupFilterEvents() {
-  document.getElementById('periodFrom').addEventListener('change', e => {
-    state.periodFrom = e.target.value;
-    // From > To になったら To も合わせる
-    if (state.periodTo && state.periodFrom > state.periodTo) {
-      state.periodTo = state.periodFrom;
-      document.getElementById('periodTo').value = state.periodTo;
-    }
-    renderAll();
-  });
-  document.getElementById('periodTo').addEventListener('change', e => {
-    state.periodTo = e.target.value;
-    if (state.periodFrom && state.periodTo < state.periodFrom) {
-      state.periodFrom = state.periodTo;
-      document.getElementById('periodFrom').value = state.periodFrom;
-    }
-    renderAll();
-  });
-  // クロス集計タブ用 期間セレクト
-  const ctFrom = document.getElementById('ctPeriodFrom');
-  const ctTo = document.getElementById('ctPeriodTo');
-  if (ctFrom && ctTo) {
-    ctFrom.addEventListener('change', e => {
-      state.periodFrom = e.target.value;
-      if (state.periodTo && state.periodFrom > state.periodTo) state.periodTo = state.periodFrom;
-      renderAll();
-    });
-    ctTo.addEventListener('change', e => {
-      state.periodTo = e.target.value;
-      if (state.periodFrom && state.periodTo < state.periodFrom) state.periodFrom = state.periodTo;
-      renderAll();
-    });
-  }
+  // 期間は共通バー（setupMonthly でハンドリング）。ここは媒体・雇用形態チップのみ。
   document.getElementById('mediaChips').addEventListener('click', e => {
     if (!e.target.classList.contains('chip')) return;
     handleChipClick(state.media, e.target.dataset.v, 'mediaChips');
