@@ -184,6 +184,20 @@ body {
 .tbl .rate-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; font-family: 'Manrope', sans-serif; background: var(--mint-100); color: var(--mint-700); }
 .tbl .rate-pill.lo { background: #fbe9e7; color: #c75c4a; }
 .tbl .rate-pill.mid { background: #fff4e0; color: #b07a1e; }
+/* 見出し固定＋行スクロール */
+.tbl-scroll { max-height: 460px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.tbl-scroll .tbl th { position: sticky; top: 0; z-index: 3; background: var(--bg-card); box-shadow: inset 0 -2px 0 var(--mint-100); border-bottom: 0; }
+.tbl-scroll .tbl { font-size: 12px; }
+/* 列フィルタ（スプレッドシート風） */
+.col-filter-btn { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 5px; border-radius: 5px; cursor: pointer; color: var(--mint-600); font-size: 9px; vertical-align: middle; border: 1px solid var(--mint-200); background: var(--mint-50); }
+.col-filter-btn:hover { background: var(--mint-100); border-color: var(--mint-400); }
+.col-filter-btn.on { background: var(--mint-500); color: #fff; border-color: var(--mint-500); }
+.col-filter-pop { position: fixed; z-index: 200; background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); padding: 6px; min-width: 230px; max-height: 340px; overflow-y: auto; }
+.col-filter-pop .cf-head { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; padding: 6px 10px 5px; }
+.col-filter-pop .cf-item { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 12px; color: var(--text); }
+.col-filter-pop .cf-item:hover { background: var(--mint-50); }
+.col-filter-pop .cf-item.sel { background: var(--mint-100); font-weight: 700; color: var(--mint-700); }
+.col-filter-pop .cf-item .cf-count { font-size: 11px; color: var(--text-faint); font-family: 'Manrope', sans-serif; }
 
 /* ===== Chart container ===== */
 .chart-box { position: relative; height: 280px; }
@@ -558,7 +572,7 @@ body.auth-locked .app { display: none; }
     <div class="split-grid">
       <div class="card">
         <div class="section-title" style="margin-bottom:10px; font-size:11px;">媒体別ファネル</div>
-        <table class="tbl" id="mediaTable"></table>
+        <div class="tbl-scroll"><table class="tbl" id="mediaTable"></table></div>
       </div>
       <div class="card">
         <div class="section-title" style="margin-bottom:10px; font-size:11px;">採用された人の雇用形態：応募時 vs 採用時</div>
@@ -588,7 +602,7 @@ body.auth-locked .app { display: none; }
       </div>
       <div class="card">
         <div class="section-title" style="margin-bottom:10px; font-size:11px;">エリア（市町村）TOP</div>
-        <table class="tbl" id="areaTable"></table>
+        <div class="tbl-scroll"><table class="tbl" id="areaTable"></table></div>
       </div>
     </div>
   </div>
@@ -608,7 +622,7 @@ body.auth-locked .app { display: none; }
   <div class="section">
     <div class="section-title"><span class="marker"></span>JOB POSTINGS<span class="ja">応募職種ランキング</span></div>
     <div class="card">
-      <table class="tbl" id="jobTable"></table>
+      <div class="tbl-scroll"><table class="tbl" id="jobTable"></table></div>
     </div>
   </div>
 
@@ -717,8 +731,8 @@ body.auth-locked .app { display: none; }
         <div class="card"><div class="chart-box"><canvas id="acTrend"></canvas></div></div>
       </div>
       <div class="split-grid">
-        <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">月別 明細</div><div style="overflow-x:auto;"><table class="tbl" id="acTable"></table></div></div>
-        <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">キャンペーン別（期間合計）</div><div style="overflow-x:auto;"><table class="tbl" id="acCampTable"></table></div></div>
+        <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">月別 明細</div><div class="tbl-scroll"><table class="tbl" id="acTable"></table></div></div>
+        <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">キャンペーン別（期間合計）</div><div class="tbl-scroll"><table class="tbl" id="acCampTable"></table></div></div>
       </div>
     </div>
   </div><!-- /page-pane adcost -->
@@ -726,16 +740,13 @@ body.auth-locked .app { display: none; }
   <div class="page-pane" data-pane="jobs" style="display:none;">
     <div id="jbEmpty" class="empty" style="display:none;"><span class="icon">○</span>求人別データ（data.json）がまだありません<div class="hint">Apps Scriptの自動更新後、または convert.py 実行後に表示されます</div></div>
     <div id="jbMain">
-      <div class="filter-bar" style="margin-bottom:16px;">
-        <div class="filter-group"><label>区分で絞り込み</label><select id="jbCpSel" onchange="jbSetCp(this.value)"></select></div>
-      </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>求人別<span class="ja">応募が発生した求人の実績（選択期間・応募TOP）</span></div>
         <div class="card"><div class="chart-box"><canvas id="jbChart"></canvas></div></div>
       </div>
       <div class="section">
-        <div class="section-title"><span class="marker"></span>求人別 実績<span class="ja">見出しクリックで並び替え（昇順／降順）</span></div>
-        <div class="card"><div style="overflow-x:auto;"><table class="tbl" id="jbTable"></table></div></div>
+        <div class="section-title"><span class="marker"></span>求人別 実績<span class="ja">見出しクリックで並び替え／「区分」の絞り込みボタンで候補を表示</span></div>
+        <div class="card"><div class="tbl-scroll"><table class="tbl" id="jbTable"></table></div></div>
       </div>
     </div>
   </div><!-- /page-pane jobs -->
@@ -2450,8 +2461,26 @@ let extData = null;
 const extCharts = {};
 let jbSort = { key: 'applies', dir: 'desc' };  // 求人別テーブルの並び替え
 let jbCp = 'all';                               // 求人別 区分(CP)フィルタ
+let jbCpOptions = [];                            // 区分の絞り込み候補（件数つき）
 function jbSetSort(key) { if (jbSort.key === key) jbSort.dir = jbSort.dir === 'desc' ? 'asc' : 'desc'; else { jbSort.key = key; jbSort.dir = 'desc'; } renderJobs(); }
 function jbSetCp(cp) { jbCp = cp; renderJobs(); }
+// 「区分」列ヘッダの絞り込みポップアップ（スプレッドシート風）
+function closeJbCpFilter() { const p = document.getElementById('jbCpPop'); if (p) p.remove(); document.removeEventListener('mousedown', jbCpOutside, true); }
+function jbCpOutside(e) { const p = document.getElementById('jbCpPop'); if (p && !p.contains(e.target) && !(e.target.classList && e.target.classList.contains('col-filter-btn'))) closeJbCpFilter(); }
+function jbOpenCpFilter(btnEl) {
+  if (document.getElementById('jbCpPop')) { closeJbCpFilter(); return; }
+  const pop = document.createElement('div');
+  pop.id = 'jbCpPop'; pop.className = 'col-filter-pop';
+  pop.innerHTML = '<div class="cf-head">区分で絞り込み</div>' + jbCpOptions.map(o =>
+    `<div class="cf-item ${jbCp === o.value ? 'sel' : ''}" onclick="jbSetCp('${String(o.value).replace(/'/g, "\\'")}'); closeJbCpFilter();"><span>${escapeHtml(o.label)}</span><span class="cf-count">${o.count}</span></div>`).join('');
+  document.body.appendChild(pop);
+  const r = btnEl.getBoundingClientRect();
+  let left = r.left, top = r.bottom + 6;
+  if (left + pop.offsetWidth > window.innerWidth - 10) left = window.innerWidth - pop.offsetWidth - 10;
+  if (top + pop.offsetHeight > window.innerHeight - 10) top = Math.max(10, r.top - pop.offsetHeight - 6);
+  pop.style.left = Math.max(10, left) + 'px'; pop.style.top = top + 'px';
+  setTimeout(() => document.addEventListener('mousedown', jbCpOutside, true), 0);
+}
 function extMk(id, cfg) { const c = document.getElementById(id); if (!c) return; if (extCharts[id]) extCharts[id].destroy(); extCharts[id] = new Chart(c, cfg); }
 function ymSlash(ym) { ym = String(ym); return ym.length >= 6 ? ym.slice(0, 4) + '/' + ym.slice(4, 6) : ym; }
 function ymLabelJ(ym) { ym = String(ym); return ym.length >= 6 ? ym.slice(0, 4) + '年' + parseInt(ym.slice(4, 6), 10) + '月' : ym; }
@@ -2527,14 +2556,12 @@ function renderJobs() {
   main.style.display = ''; if (empty) empty.style.display = 'none';
   const { f, t } = periodYms();
   const periodRows = extData.jobs.filter(j => (!f || j.ym >= f) && (!t || j.ym <= t));
-  // 区分(CP)の候補（出現件数つき）→ 絞り込みプルダウン
+  // 区分(CP)の候補（出現件数つき）→ 列ヘッダの絞り込みポップアップで使用
   const cpCount = {};
   periodRows.forEach(j => { const c = j.cp || '(未分類)'; cpCount[c] = (cpCount[c] || 0) + 1; });
   const cps = Object.keys(cpCount).sort((a, b) => a.localeCompare(b, 'ja'));
   if (jbCp !== 'all' && cps.indexOf(jbCp) < 0) jbCp = 'all';
-  const sel = document.getElementById('jbCpSel');
-  if (sel) sel.innerHTML = `<option value="all">すべての区分（${periodRows.length}）</option>` +
-    cps.map(c => `<option value="${escapeHtml(c)}"${jbCp === c ? ' selected' : ''}>${escapeHtml(c)}（${cpCount[c]}）</option>`).join('');
+  jbCpOptions = [{ value: 'all', label: 'すべての区分', count: periodRows.length }].concat(cps.map(c => ({ value: c, label: c, count: cpCount[c] })));
   const rows = jbCp === 'all' ? periodRows : periodRows.filter(j => (j.cp || '(未分類)') === jbCp);
   // 求人別に集計
   const map = {};
@@ -2554,8 +2581,9 @@ function renderJobs() {
   const tA = list.reduce((s, a) => s + a.applies, 0), tCost = list.reduce((s, a) => s + a.cost, 0), tClick = list.reduce((s, a) => s + a.click, 0), tImp = list.reduce((s, a) => s + a.imp, 0);
   const arr = key => jbSort.key === key ? (jbSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer; user-select:none;" onclick="jbSetSort('${key}')">${label}${arr(key)}</th>`;
+  const cpHeader = `<th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="jbSetSort('cp')">区分${arr('cp')}<span class="col-filter-btn ${jbCp !== 'all' ? 'on' : ''}" title="区分で絞り込み" onclick="event.stopPropagation(); jbOpenCpFilter(this)">▾</span></th>`;
   document.getElementById('jbTable').innerHTML = list.length ?
-    `<thead><tr>${th('title', '求人', '')}${th('cp', '区分', '')}${th('imp', '表示', 'num')}${th('click', 'クリック', 'num')}${th('applies', '応募', 'num')}${th('cost', 'コスト', 'num')}${th('cpa', '応募単価', 'num')}</tr></thead><tbody>` +
+    `<thead><tr>${th('title', '求人', '')}${cpHeader}${th('imp', '表示', 'num')}${th('click', 'クリック', 'num')}${th('applies', '応募', 'num')}${th('cost', 'コスト', 'num')}${th('cpa', '応募単価', 'num')}</tr></thead><tbody>` +
     list.map(a => `<tr><td style="white-space:nowrap; max-width:340px; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(a.title)}">${escapeHtml(a.title)}</td><td>${escapeHtml(a.cp || '')}</td><td class="num">${fmtNum(a.imp)}</td><td class="num">${fmtNum(a.click)}</td><td class="num">${fmtNum(a.applies)}</td><td class="num">${fmtYen(a.cost)}</td><td class="num">${a.applies ? fmtYen(a.cpa) : '-'}</td></tr>`).join('') +
     `<tr style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td></td><td class="num"><b>${fmtNum(tImp)}</b></td><td class="num"><b>${fmtNum(tClick)}</b></td><td class="num"><b>${fmtNum(tA)}</b></td><td class="num"><b>${fmtYen(tCost)}</b></td><td class="num"><b>${tA ? fmtYen(Math.round(tCost / tA)) : '-'}</b></td></tr></tbody>` :
     '<tbody><tr><td style="padding:24px; text-align:center; color:var(--text-faint);">該当する求人はありません</td></tr></tbody>';
