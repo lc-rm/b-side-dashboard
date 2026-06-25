@@ -598,7 +598,7 @@ body.auth-locked .app { display: none; }
     <div class="split-grid">
       <div class="card">
         <div class="section-title" style="margin-bottom:10px; font-size:11px;">年代別 応募・採用</div>
-        <table class="tbl" id="ageTable"></table>
+        <div class="tbl-scroll"><table class="tbl" id="ageTable"></table></div>
       </div>
       <div class="card">
         <div class="section-title" style="margin-bottom:10px; font-size:11px;">エリア（市町村）TOP</div>
@@ -629,7 +629,7 @@ body.auth-locked .app { display: none; }
   <div class="section">
     <div class="section-title"><span class="marker"></span>STATUS<span class="ja">面談後状況（ステータス）</span></div>
     <div class="card">
-      <table class="tbl" id="statusTable"></table>
+      <div class="tbl-scroll"><table class="tbl" id="statusTable"></table></div>
       <div style="margin-top:10px; font-size:11px; color:var(--text-faint); line-height:1.5;">※「面談後状況」が記録されている応募者の内訳。構成比は記録あり件数に対する割合。</div>
     </div>
   </div>
@@ -780,7 +780,7 @@ body.auth-locked .app { display: none; }
             <label class="btn-primary" for="csvInputAdmin">＋ CSVを追加</label>
             <input type="file" id="csvInputAdmin" accept=".csv" multiple style="display:none;">
           </div>
-          <table class="tbl" id="adminFileTable"></table>
+          <div class="tbl-scroll"><table class="tbl" id="adminFileTable"></table></div>
         </div>
 
         <div style="margin-top:14px; font-size:11px; color:var(--text-faint); line-height:1.7;">
