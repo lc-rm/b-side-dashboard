@@ -947,11 +947,11 @@ function getFiltered() {
   });
 }
 
-// クロス集計タブ用：期間のみで絞り込み
+// クロス集計タブ用：期間のみで絞り込み（期間は全タブ共通 = state.periodFrom/To）
 function getCtFiltered() {
   return allData.filter(r => {
-    if (state.ctPeriodFrom && r.ym < state.ctPeriodFrom) return false;
-    if (state.ctPeriodTo && r.ym > state.ctPeriodTo) return false;
+    if (state.periodFrom && r.ym < state.periodFrom) return false;
+    if (state.periodTo && r.ym > state.periodTo) return false;
     return true;
   });
 }
@@ -1008,10 +1008,18 @@ function renderFunnel(rows) {
     { label:'採用', value: t.hire, color: FUNNEL_COLORS[4] },
   ];
   const max = t.apply || 1;
-  document.getElementById('funnel').innerHTML = stages.map((s, i) => {
+  const header = `
+    <div class="funnel-row" style="padding-bottom:2px;">
+      <div class="funnel-label"></div>
+      <div class="funnel-bar-wrap" style="background:transparent; border:0; height:auto;"></div>
+      <div class="funnel-conv" style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint);">応募比</div>
+      <div class="funnel-conv" style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint);">前段階比</div>
+    </div>`;
+  document.getElementById('funnel').innerHTML = header + stages.map((s, i) => {
     const w = (s.value/max*100).toFixed(1);
     const prevV = i === 0 ? null : stages[i-1].value;
-    const conv = prevV != null && prevV > 0 ? `前段階比 <b>${Math.round(s.value/prevV*100)}%</b>` : '応募ベース';
+    const baseP = `<b>${Math.round(s.value/max*100)}%</b>`;
+    const prevP = (prevV != null && prevV > 0) ? `<b>${Math.round(s.value/prevV*100)}%</b>` : '<span style="color:var(--text-faint)">—</span>';
     return `
       <div class="funnel-row">
         <div class="funnel-label">${s.label}</div>
@@ -1019,7 +1027,8 @@ function renderFunnel(rows) {
           <div class="funnel-bar" style="width:${w}%; --bar-color:${s.color}"></div>
           <div class="funnel-value">${s.value}</div>
         </div>
-        <div class="funnel-conv">${conv}</div>
+        <div class="funnel-conv">${baseP}</div>
+        <div class="funnel-conv">${prevP}</div>
       </div>
     `;
   }).join('');
@@ -2013,6 +2022,10 @@ function renderAll() {
   renderAdmin();
   if (state.pageTab === 'monthly') renderMonthly();
 
+  // 期間コントロールを全タブで同期（共通の state.periodFrom/To に合わせる）
+  ['periodFrom', 'ctPeriodFrom', 'moFrom'].forEach(id => { const el = document.getElementById(id); if (el && state.periodFrom) el.value = state.periodFrom; });
+  ['periodTo', 'ctPeriodTo', 'moTo'].forEach(id => { const el = document.getElementById(id); if (el && state.periodTo) el.value = state.periodTo; });
+
   const months = [...new Set(allData.map(r=>r.ym))].sort();
   if (months.length) {
     document.getElementById('dataRange').textContent = `${months[0]} 〜 ${months[months.length-1]}（全 ${allData.length.toLocaleString()} 件）`;
@@ -2039,10 +2052,8 @@ function rebuildFilters() {
   if (ctFrom && ctTo) {
     ctFrom.innerHTML = opts;
     ctTo.innerHTML = opts;
-    if (!state.ctPeriodFrom || !periods.includes(state.ctPeriodFrom)) state.ctPeriodFrom = periods[0];
-    if (!state.ctPeriodTo || !periods.includes(state.ctPeriodTo)) state.ctPeriodTo = periods[periods.length - 1];
-    ctFrom.value = state.ctPeriodFrom;
-    ctTo.value = state.ctPeriodTo;
+    ctFrom.value = state.periodFrom;
+    ctTo.value = state.periodTo;
   }
 
   const medias = [...new Set(allData.map(r=>r.media || '(未設定)'))];
@@ -2077,19 +2088,13 @@ function setupFilterEvents() {
   const ctTo = document.getElementById('ctPeriodTo');
   if (ctFrom && ctTo) {
     ctFrom.addEventListener('change', e => {
-      state.ctPeriodFrom = e.target.value;
-      if (state.ctPeriodTo && state.ctPeriodFrom > state.ctPeriodTo) {
-        state.ctPeriodTo = state.ctPeriodFrom;
-        ctTo.value = state.ctPeriodTo;
-      }
+      state.periodFrom = e.target.value;
+      if (state.periodTo && state.periodFrom > state.periodTo) state.periodTo = state.periodFrom;
       renderAll();
     });
     ctTo.addEventListener('change', e => {
-      state.ctPeriodTo = e.target.value;
-      if (state.ctPeriodFrom && state.ctPeriodTo < state.ctPeriodFrom) {
-        state.ctPeriodFrom = state.ctPeriodTo;
-        ctFrom.value = state.ctPeriodFrom;
-      }
+      state.periodTo = e.target.value;
+      if (state.periodFrom && state.periodTo < state.periodFrom) state.periodFrom = state.periodTo;
       renderAll();
     });
   }
@@ -2479,7 +2484,7 @@ function rebuildFromSnapshot(snap) {
 
 // ============== 月別タブ（期間選択 + 区分別グラフ＆表 + 推移） ==============
 function monthsSorted() { return [...new Set(allData.map(r => r.ym))].sort(); }
-let moFrom = null, moTo = null;   // 選択期間（'YYYY-MM'）
+// 期間は state.periodFrom / state.periodTo（全タブ共通）
 
 const monthlyCharts = {};
 const MO_FONT = { family: 'Noto Sans JP', size: 11 };
@@ -2509,38 +2514,38 @@ function setupMonthly() {
   const pre = document.getElementById('moPresets');
   if (pre) pre.addEventListener('click', e => { const p = e.target.dataset.preset; if (p) applyPreset(p); });
   const f = document.getElementById('moFrom'), t = document.getElementById('moTo');
-  if (f) f.addEventListener('change', e => { moFrom = e.target.value; if (moFrom > moTo) moTo = moFrom; renderMonthly(); });
-  if (t) t.addEventListener('change', e => { moTo = e.target.value; if (moTo < moFrom) moFrom = moTo; renderMonthly(); });
+  if (f) f.addEventListener('change', e => { state.periodFrom = e.target.value; if (state.periodFrom > state.periodTo) state.periodTo = state.periodFrom; renderAll(); });
+  if (t) t.addEventListener('change', e => { state.periodTo = e.target.value; if (state.periodTo < state.periodFrom) state.periodFrom = state.periodTo; renderAll(); });
   const sl = document.getElementById('moShiftL'), sr = document.getElementById('moShiftR');
   if (sl) sl.addEventListener('click', () => shiftRange(-1));
   if (sr) sr.addEventListener('click', () => shiftRange(1));
 }
 function applyPreset(p) {
   const ms = monthsSorted(); if (!ms.length) return; const last = ms[ms.length - 1];
-  if (p === 'all') { moFrom = ms[0]; moTo = last; }
-  else if (p === 'cur') { moFrom = last; moTo = last; }
-  else if (p === 'prev') { const i = Math.max(0, ms.length - 2); moFrom = ms[i]; moTo = ms[i]; }
-  else { const n = parseInt(p, 10); moTo = last; moFrom = ms[Math.max(0, ms.length - n)]; }
-  renderMonthly();
+  if (p === 'all') { state.periodFrom = ms[0]; state.periodTo = last; }
+  else if (p === 'cur') { state.periodFrom = last; state.periodTo = last; }
+  else if (p === 'prev') { const i = Math.max(0, ms.length - 2); state.periodFrom = ms[i]; state.periodTo = ms[i]; }
+  else { const n = parseInt(p, 10); state.periodTo = last; state.periodFrom = ms[Math.max(0, ms.length - n)]; }
+  renderAll();
 }
 function shiftRange(d) {
-  const ms = monthsSorted(); const fi = ms.indexOf(moFrom), ti = ms.indexOf(moTo);
+  const ms = monthsSorted(); const fi = ms.indexOf(state.periodFrom), ti = ms.indexOf(state.periodTo);
   if (fi < 0 || ti < 0) return; const nfi = fi + d, nti = ti + d;
-  if (nfi < 0 || nti >= ms.length) return; moFrom = ms[nfi]; moTo = ms[nti]; renderMonthly();
+  if (nfi < 0 || nti >= ms.length) return; state.periodFrom = ms[nfi]; state.periodTo = ms[nti]; renderAll();
 }
 function populateMonthSelects(months) {
   ['moFrom', 'moTo'].forEach(id => { const s = document.getElementById(id); if (!s) return; s.innerHTML = months.map(m => `<option value="${m}">${moYmSlash(m)}</option>`).join(''); });
 }
 function updatePeriodUI() {
   const f = document.getElementById('moFrom'), t = document.getElementById('moTo');
-  if (f) f.value = moFrom; if (t) t.value = moTo;
-  const ms = monthsSorted(); const n = ms.filter(m => m >= moFrom && m <= moTo).length; const last = ms[ms.length - 1];
-  const lbl = document.getElementById('moRangeLabel'); if (lbl) lbl.textContent = `対象: ${moYmSlash(moFrom)}〜${moYmSlash(moTo)}（${n}ヶ月）`;
+  if (f) f.value = state.periodFrom; if (t) t.value = state.periodTo;
+  const ms = monthsSorted(); const n = ms.filter(m => m >= state.periodFrom && m <= state.periodTo).length; const last = ms[ms.length - 1];
+  const lbl = document.getElementById('moRangeLabel'); if (lbl) lbl.textContent = `対象: ${moYmSlash(state.periodFrom)}〜${moYmSlash(state.periodTo)}（${n}ヶ月）`;
   let active = '';
-  if (moFrom === ms[0] && moTo === last) active = 'all';
-  else if (moFrom === last && moTo === last) active = 'cur';
-  else if (ms.length >= 2 && moFrom === ms[ms.length - 2] && moTo === ms[ms.length - 2]) active = 'prev';
-  else if (moTo === last) { if (n === 12) active = '12'; else if (n === 6) active = '6'; else if (n === 3) active = '3'; }
+  if (state.periodFrom === ms[0] && state.periodTo === last) active = 'all';
+  else if (state.periodFrom === last && state.periodTo === last) active = 'cur';
+  else if (ms.length >= 2 && state.periodFrom === ms[ms.length - 2] && state.periodTo === ms[ms.length - 2]) active = 'prev';
+  else if (state.periodTo === last) { if (n === 12) active = '12'; else if (n === 6) active = '6'; else if (n === 3) active = '3'; }
   document.querySelectorAll('#moPresets .chip').forEach(c => c.classList.toggle('active', c.dataset.preset === active));
 }
 
@@ -2600,7 +2605,7 @@ function renderMoKpi(rows) {
 }
 
 function renderMoTrend() {
-  const months = monthsSorted().filter(m => m >= moFrom && m <= moTo);
+  const months = monthsSorted().filter(m => m >= state.periodFrom && m <= state.periodTo);
   const M = {}; months.forEach(m => M[m] = { a: 0, h: 0 });
   allData.forEach(r => { if (!M[r.ym]) return; M[r.ym].a++; if (classify(r).hire) M[r.ym].h++; });
   const apply = months.map(m => M[m].a), hire = months.map(m => M[m].h);
@@ -2627,13 +2632,13 @@ function renderMonthly() {
   }
   main.style.display = ''; if (emptyEl) emptyEl.style.display = 'none';
   populateMonthSelects(months);
-  if (!moFrom || !months.includes(moFrom)) moFrom = months[0];
-  if (!moTo || !months.includes(moTo)) moTo = months[months.length - 1];
-  if (moFrom > moTo) moFrom = moTo;
+  if (!state.periodFrom || !months.includes(state.periodFrom)) state.periodFrom = months[0];
+  if (!state.periodTo || !months.includes(state.periodTo)) state.periodTo = months[months.length - 1];
+  if (state.periodFrom > state.periodTo) state.periodFrom = state.periodTo;
   updatePeriodUI();
 
-  const rows = allData.filter(r => r.ym >= moFrom && r.ym <= moTo);
-  const lbl = document.getElementById('moMonthLabel'); if (lbl) lbl.textContent = `${moYmSlash(moFrom)}〜${moYmSlash(moTo)}`;
+  const rows = allData.filter(r => r.ym >= state.periodFrom && r.ym <= state.periodTo);
+  const lbl = document.getElementById('moMonthLabel'); if (lbl) lbl.textContent = `${moYmSlash(state.periodFrom)}〜${moYmSlash(state.periodTo)}`;
   renderMoKpi(rows);
   moDonut('moChart_age', moCountBy(rows, 'age'), null); moDimTable('moCross_age', 'age', rows, null);
   moDonut('moChart_job', moCountBy(rows, 'job'), null); moDimTable('moCross_job', 'job', rows, null);
