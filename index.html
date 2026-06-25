@@ -588,11 +588,26 @@ body.auth-locked .app { display: none; }
   <div class="page-pane" data-pane="monthly" style="display:none;">
     <div class="filter-bar">
       <div class="filter-group">
-        <label>対象月</label>
-        <select id="moMonthSel"></select>
+        <label>期間</label>
+        <div class="chip-group" id="moPresets">
+          <button class="chip" data-preset="cur">当月</button>
+          <button class="chip" data-preset="prev">前月</button>
+          <button class="chip active" data-preset="all">全期間</button>
+          <button class="chip" data-preset="12">直近12ヶ月</button>
+          <button class="chip" data-preset="6">直近6ヶ月</button>
+          <button class="chip" data-preset="3">直近3ヶ月</button>
+        </div>
       </div>
       <div class="filter-group">
-        <span style="font-size:11px; color:var(--text-dim);">選択した月の深掘り分析（応募・採用・採用率）</span>
+        <label>期間指定</label>
+        <button class="chip btn-mini" id="moShiftL" title="前へ">◀</button>
+        <select id="moFrom"></select>
+        <span class="period-sep">〜</span>
+        <select id="moTo"></select>
+        <button class="chip btn-mini" id="moShiftR" title="次へ">▶</button>
+      </div>
+      <div class="filter-group" style="margin-left:auto;">
+        <span id="moRangeLabel" style="font-size:11px; color:var(--text-dim);"></span>
       </div>
     </div>
     <div id="monthlyEmpty" class="empty" style="display:none;"><span class="icon">○</span>データがありません<div class="hint">CSVをアップロードしてください</div></div>
@@ -613,6 +628,7 @@ body.auth-locked .app { display: none; }
           <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">雇用形態別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_emp"></table></div></div>
           <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">媒体別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_media"></table></div></div>
         </div>
+        <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">面談後状況別（ステータス）</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross" id="moCross_after"></table></div></div>
         <div class="card" style="margin-top:14px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">応募先別</div><div class="pivot-wrap"><table class="pivot-tbl mo-cross mo-cross-wide" id="moCross_company"></table></div></div>
       </div>
 
@@ -627,6 +643,7 @@ body.auth-locked .app { display: none; }
           <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">雇用形態別</div><div class="mo-donut"><div class="moc"><canvas id="moChart_emp"></canvas></div><div class="mol" id="moChart_emp_leg"></div></div></div>
           <div class="card"><div class="section-title" style="margin-bottom:10px; font-size:11px;">媒体別</div><div class="mo-donut"><div class="moc"><canvas id="moChart_media"></canvas></div><div class="mol" id="moChart_media_leg"></div></div></div>
         </div>
+        <div class="card" style="margin-top:16px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">面談後状況別（ステータス）</div><div class="mo-donut"><div class="moc"><canvas id="moChart_after"></canvas></div><div class="mol" id="moChart_after_leg"></div></div></div>
         <div class="card" style="margin-top:16px;"><div class="section-title" style="margin-bottom:10px; font-size:11px;">応募先別（応募数）</div><div class="chart-box" style="height:360px;"><canvas id="moChart_company"></canvas></div></div>
       </div>
 
@@ -2413,13 +2430,9 @@ function rebuildFromSnapshot(snap) {
   renderAll();
 }
 
-// ============== 月別タブ（単月の深掘り：対象月セレクタ + 区分別グラフ＆表） ==============
+// ============== 月別タブ（期間選択 + 区分別グラフ＆表 + 推移） ==============
 function monthsSorted() { return [...new Set(allData.map(r => r.ym))].sort(); }
-let moMonth = null;            // 選択中の対象月 'YYYY-MM'
-function setupMonthly() {
-  const sel = document.getElementById('moMonthSel');
-  if (sel) sel.addEventListener('change', e => { moMonth = e.target.value; renderMonthly(); });
-}
+let moFrom = null, moTo = null;   // 選択期間（'YYYY-MM'）
 
 const monthlyCharts = {};
 const MO_FONT = { family: 'Noto Sans JP', size: 11 };
@@ -2428,28 +2441,63 @@ const MO_PALETTE = ['#1eaf75','#4a90c4','#d49a2a','#9479c9','#c97fa8','#52aab5',
 const AGE_ORDER = ['10代','20代','30代','40代','50代','60代','70代','80代','90代','(不明)'];
 
 function moYmLabel(ym) { const p = String(ym).split('-'); return p[1] ? `${p[0]}年${parseInt(p[1], 10)}月` : ym; }
+function moYmSlash(ym) { return String(ym).replace('-', '/'); }
 function moNum(v) { return v ? fmtNum(v) : '<span style="color:var(--text-faint)">-</span>'; }
-function moDimName(dim) { return { age: '年代', job: '職種', company: '応募先', media: '媒体', employment: '雇用形態' }[dim] || dim; }
+function moDimName(dim) { return { age: '年代', job: '職種', company: '応募先', media: '媒体', employment: '雇用形態', after: '面談後状況' }[dim] || dim; }
 function moDimVal(r, dim) {
   if (dim === 'age') return ageBand(r.age) || '(不明)';
   if (dim === 'job') return (r.job || '').trim() || '(未設定)';
   if (dim === 'company') return (r.company || '').trim() || '(未設定)';
   if (dim === 'media') return r.media || '(未設定)';
   if (dim === 'employment') return normalizeEmp(r.employment) || '(未設定)';
+  if (dim === 'after') return (r.after_meeting || '').trim() || '(未対応)';
   return '(未設定)';
 }
-function moMkChart(id, config) {
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  if (monthlyCharts[id]) monthlyCharts[id].destroy();
-  monthlyCharts[id] = new Chart(ctx, config);
-}
+function moMkChart(id, config) { const ctx = document.getElementById(id); if (!ctx) return; if (monthlyCharts[id]) monthlyCharts[id].destroy(); monthlyCharts[id] = new Chart(ctx, config); }
 function moRate(a, h) { if (!a) return '-'; const p = Math.round(h / a * 100); const cls = p >= 20 ? '' : p >= 10 ? 'mid' : 'lo'; return `<span class="rate-pill ${cls}">${p}%</span>`; }
-
-// 応募件数の集計（ドーナツ／棒用）
 function moCountBy(rows, dim) { const m = {}; rows.forEach(r => { const v = moDimVal(r, dim); m[v] = (m[v] || 0) + 1; }); return m; }
 
-// ドーナツ（凡例は外・固定サイズ）
+// ===== 期間セレクタ =====
+function setupMonthly() {
+  const pre = document.getElementById('moPresets');
+  if (pre) pre.addEventListener('click', e => { const p = e.target.dataset.preset; if (p) applyPreset(p); });
+  const f = document.getElementById('moFrom'), t = document.getElementById('moTo');
+  if (f) f.addEventListener('change', e => { moFrom = e.target.value; if (moFrom > moTo) moTo = moFrom; renderMonthly(); });
+  if (t) t.addEventListener('change', e => { moTo = e.target.value; if (moTo < moFrom) moFrom = moTo; renderMonthly(); });
+  const sl = document.getElementById('moShiftL'), sr = document.getElementById('moShiftR');
+  if (sl) sl.addEventListener('click', () => shiftRange(-1));
+  if (sr) sr.addEventListener('click', () => shiftRange(1));
+}
+function applyPreset(p) {
+  const ms = monthsSorted(); if (!ms.length) return; const last = ms[ms.length - 1];
+  if (p === 'all') { moFrom = ms[0]; moTo = last; }
+  else if (p === 'cur') { moFrom = last; moTo = last; }
+  else if (p === 'prev') { const i = Math.max(0, ms.length - 2); moFrom = ms[i]; moTo = ms[i]; }
+  else { const n = parseInt(p, 10); moTo = last; moFrom = ms[Math.max(0, ms.length - n)]; }
+  renderMonthly();
+}
+function shiftRange(d) {
+  const ms = monthsSorted(); const fi = ms.indexOf(moFrom), ti = ms.indexOf(moTo);
+  if (fi < 0 || ti < 0) return; const nfi = fi + d, nti = ti + d;
+  if (nfi < 0 || nti >= ms.length) return; moFrom = ms[nfi]; moTo = ms[nti]; renderMonthly();
+}
+function populateMonthSelects(months) {
+  ['moFrom', 'moTo'].forEach(id => { const s = document.getElementById(id); if (!s) return; s.innerHTML = months.map(m => `<option value="${m}">${moYmSlash(m)}</option>`).join(''); });
+}
+function updatePeriodUI() {
+  const f = document.getElementById('moFrom'), t = document.getElementById('moTo');
+  if (f) f.value = moFrom; if (t) t.value = moTo;
+  const ms = monthsSorted(); const n = ms.filter(m => m >= moFrom && m <= moTo).length; const last = ms[ms.length - 1];
+  const lbl = document.getElementById('moRangeLabel'); if (lbl) lbl.textContent = `対象: ${moYmSlash(moFrom)}〜${moYmSlash(moTo)}（${n}ヶ月）`;
+  let active = '';
+  if (moFrom === ms[0] && moTo === last) active = 'all';
+  else if (moFrom === last && moTo === last) active = 'cur';
+  else if (ms.length >= 2 && moFrom === ms[ms.length - 2] && moTo === ms[ms.length - 2]) active = 'prev';
+  else if (moTo === last) { if (n === 12) active = '12'; else if (n === 6) active = '6'; else if (n === 3) active = '3'; }
+  document.querySelectorAll('#moPresets .chip').forEach(c => c.classList.toggle('active', c.dataset.preset === active));
+}
+
+// ===== グラフ =====
 function moDonut(id, counts, colorMap) {
   let entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   let other = 0;
@@ -2458,25 +2506,16 @@ function moDonut(id, counts, colorMap) {
   const data = entries.map(e => e[1]).concat(other ? [other] : []);
   const total = data.reduce((s, v) => s + v, 0);
   const colors = labels.map((k, i) => (colorMap && colorMap[k]) || (k === 'その他' ? '#b8c2bd' : MO_PALETTE[i % MO_PALETTE.length]));
-  moMkChart(id, {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { display: false }, tooltip: { ...MO_TT, callbacks: { label: c => ` ${labels[c.dataIndex]}: ${c.parsed}名（${total ? Math.round(data[c.dataIndex] / total * 100) : 0}%）` } } } }
-  });
+  moMkChart(id, { type: 'doughnut', data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { display: false }, tooltip: { ...MO_TT, callbacks: { label: c => ` ${labels[c.dataIndex]}: ${c.parsed}名（${total ? Math.round(data[c.dataIndex] / total * 100) : 0}%）` } } } } });
   const leg = document.getElementById(id + '_leg');
   if (leg) leg.innerHTML = total ? labels.map((k, i) => `<span class="mol-item"><span class="mol-dot" style="background:${colors[i]}"></span>${escapeHtml(k)}（${Math.round(data[i] / total * 100)}%）</span>`).join('') : '<span style="color:var(--text-faint)">データなし</span>';
 }
-// 横棒（応募先・フルラベル）
 function moBarH(id, counts, n) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n);
-  moMkChart(id, {
-    type: 'bar',
-    data: { labels: entries.map(e => e[0]), datasets: [{ label: '応募', data: entries.map(e => e[1]), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1, borderRadius: 4 }] },
-    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: MO_TT }, scales: { x: { beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT } }, y: { grid: { display: false }, ticks: { color: '#1a2421', font: MO_FONT, autoSkip: false } } } }
-  });
+  moMkChart(id, { type: 'bar', data: { labels: entries.map(e => e[0]), datasets: [{ label: '応募', data: entries.map(e => e[1]), backgroundColor: 'rgba(30,175,117,0.75)', borderColor: MINT, borderWidth: 1, borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: MO_TT }, scales: { x: { beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT } }, y: { grid: { display: false }, ticks: { color: '#1a2421', font: MO_FONT, autoSkip: false } } } } });
 }
 
-// 単月の区分別テーブル（区分 × 応募/採用/採用率 ＋ 合計）
+// 区分別テーブル（区分 × 応募 / 応募率 / 採用 / 採用率 ＋ 合計）
 function moDimTable(elId, dim, rows, colorMap, wide) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -2487,16 +2526,17 @@ function moDimTable(elId, dim, rows, colorMap, wide) {
   else order.sort((a, b) => map[b].a - map[a].a);
   const topN = wide ? 15 : 12; let top = order, hasOther = false;
   if (order.length > topN) { top = order.slice(0, topN); hasOther = true; }
+  const totalA = Object.values(map).reduce((s, g) => s + g.a, 0) || 1;
   const dot = v => (colorMap && colorMap[v]) ? `<span class="media-dot" style="background:${colorMap[v]}"></span>` : '';
-  let h = `<thead><tr><th>${escapeHtml(moDimName(dim))}</th><th class="num">応募</th><th class="num">採用</th><th class="num">採用率</th></tr></thead><tbody>`;
+  const share = a => `<td class="num" style="color:var(--text-dim)">${Math.round(a / totalA * 100)}%</td>`;
+  let h = `<thead><tr><th>${escapeHtml(moDimName(dim))}</th><th class="num">応募</th><th class="num">応募率</th><th class="num">採用</th><th class="num">採用率</th></tr></thead><tbody>`;
   let tA = 0, tH = 0;
-  top.forEach(v => { const g = map[v]; if (!(g.a || g.h)) return; tA += g.a; tH += g.h; h += `<tr><td>${dot(v)}${escapeHtml(v)}</td><td class="num">${moNum(g.a)}</td><td class="num">${moNum(g.h)}</td><td class="num">${moRate(g.a, g.h)}</td></tr>`; });
-  if (hasOther) { let oa = 0, oh = 0; order.forEach(v => { if (!top.includes(v)) { oa += map[v].a; oh += map[v].h; } }); if (oa || oh) { tA += oa; tH += oh; h += `<tr><td>その他</td><td class="num">${moNum(oa)}</td><td class="num">${moNum(oh)}</td><td class="num">${moRate(oa, oh)}</td></tr>`; } }
-  h += `<tr class="level-0" style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td class="num"><b>${moNum(tA)}</b></td><td class="num"><b>${moNum(tH)}</b></td><td class="num"><b>${moRate(tA, tH)}</b></td></tr></tbody>`;
+  top.forEach(v => { const g = map[v]; if (!(g.a || g.h)) return; tA += g.a; tH += g.h; h += `<tr><td>${dot(v)}${escapeHtml(v)}</td><td class="num">${moNum(g.a)}</td>${share(g.a)}<td class="num">${moNum(g.h)}</td><td class="num">${moRate(g.a, g.h)}</td></tr>`; });
+  if (hasOther) { let oa = 0, oh = 0; order.forEach(v => { if (!top.includes(v)) { oa += map[v].a; oh += map[v].h; } }); if (oa || oh) { tA += oa; tH += oh; h += `<tr><td>その他</td><td class="num">${moNum(oa)}</td>${share(oa)}<td class="num">${moNum(oh)}</td><td class="num">${moRate(oa, oh)}</td></tr>`; } }
+  h += `<tr class="level-0" style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td class="num"><b>${moNum(tA)}</b></td><td class="num"><b>100%</b></td><td class="num"><b>${moNum(tH)}</b></td><td class="num"><b>${moRate(tA, tH)}</b></td></tr></tbody>`;
   el.innerHTML = h;
 }
 
-// 選択月のサマリーKPI
 function renderMoKpi(rows) {
   const el = document.getElementById('moKpi');
   if (!el) return;
@@ -2512,6 +2552,22 @@ function renderMoKpi(rows) {
   el.innerHTML = items.map(i => `<div class="kpi ${i.cls}"><div class="label">${i.label}</div><div class="value">${i.value}${i.unit ? `<span class="unit">${i.unit}</span>` : ''}</div></div>`).join('');
 }
 
+function renderMoTrend() {
+  const months = monthsSorted().filter(m => m >= moFrom && m <= moTo);
+  const M = {}; months.forEach(m => M[m] = { a: 0, h: 0 });
+  allData.forEach(r => { if (!M[r.ym]) return; M[r.ym].a++; if (classify(r).hire) M[r.ym].h++; });
+  const apply = months.map(m => M[m].a), hire = months.map(m => M[m].h);
+  const rate = months.map(m => M[m].a ? +(M[m].h / M[m].a * 100).toFixed(1) : 0);
+  moMkChart('moTrend', {
+    data: { labels: months.map(moYmLabel), datasets: [
+      { type: 'bar', label: '応募', data: apply, backgroundColor: 'rgba(74,144,196,0.75)', borderColor: '#4a90c4', borderWidth: 1.5, borderRadius: 5, yAxisID: 'y' },
+      { type: 'bar', label: '採用', data: hire, backgroundColor: 'rgba(30,175,117,0.85)', borderColor: MINT, borderWidth: 1.5, borderRadius: 5, yAxisID: 'y' },
+      { type: 'line', label: '採用率(%)', data: rate, borderColor: '#d96666', backgroundColor: '#d96666', borderWidth: 2.5, borderDash: [4, 3], tension: 0.3, pointRadius: 4, yAxisID: 'yR', fill: false },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { color: '#5a6862', font: MO_FONT, boxWidth: 12, padding: 10 } }, tooltip: MO_TT }, scales: { x: { grid: { display: false }, ticks: { color: '#5a6862', font: MO_FONT } }, y: { position: 'left', beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT }, title: { display: true, text: '人数', color: '#8a9690', font: { size: 11 } } }, yR: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#d96666', font: MO_FONT, callback: v => v + '%' }, title: { display: true, text: '採用率', color: '#d96666', font: { size: 11 } } } } }
+  });
+}
+
 function renderMonthly() {
   const main = document.getElementById('monthlyMain');
   const emptyEl = document.getElementById('monthlyEmpty');
@@ -2523,58 +2579,22 @@ function renderMonthly() {
     return;
   }
   main.style.display = ''; if (emptyEl) emptyEl.style.display = 'none';
+  populateMonthSelects(months);
+  if (!moFrom || !months.includes(moFrom)) moFrom = months[0];
+  if (!moTo || !months.includes(moTo)) moTo = months[months.length - 1];
+  if (moFrom > moTo) moFrom = moTo;
+  updatePeriodUI();
 
-  const sel = document.getElementById('moMonthSel');
-  if (sel) {
-    sel.innerHTML = months.map(m => `<option value="${m}">${moYmLabel(m)}</option>`).join('');
-    if (!moMonth || !months.includes(moMonth)) moMonth = months[months.length - 1];
-    sel.value = moMonth;
-  }
-  const lbl = document.getElementById('moMonthLabel');
-  if (lbl) lbl.textContent = moYmLabel(moMonth);
-
-  const rows = allData.filter(r => r.ym === moMonth);
+  const rows = allData.filter(r => r.ym >= moFrom && r.ym <= moTo);
+  const lbl = document.getElementById('moMonthLabel'); if (lbl) lbl.textContent = `${moYmSlash(moFrom)}〜${moYmSlash(moTo)}`;
   renderMoKpi(rows);
-  moDonut('moChart_age', moCountBy(rows, 'age'), null);
-  moDimTable('moCross_age', 'age', rows, null);
-  moDonut('moChart_job', moCountBy(rows, 'job'), null);
-  moDimTable('moCross_job', 'job', rows, null);
-  moDonut('moChart_emp', moCountBy(rows, 'employment'), EMP_COLORS);
-  moDimTable('moCross_emp', 'employment', rows, EMP_COLORS);
-  moDonut('moChart_media', moCountBy(rows, 'media'), MEDIA_COLORS);
-  moDimTable('moCross_media', 'media', rows, MEDIA_COLORS);
-  moBarH('moChart_company', moCountBy(rows, 'company'), 12);
-  moDimTable('moCross_company', 'company', rows, null, true);
-  renderMoTrend(moMonth);
-}
-
-// 月別の推移（線グラフ・全期間／選択月を強調）
-function renderMoTrend(selYm) {
-  const months = monthsSorted();
-  const M = {}; months.forEach(m => M[m] = { a: 0, h: 0 });
-  allData.forEach(r => { if (!M[r.ym]) return; M[r.ym].a++; if (classify(r).hire) M[r.ym].h++; });
-  const apply = months.map(m => M[m].a), hire = months.map(m => M[m].h);
-  const rate = months.map(m => M[m].a ? +(M[m].h / M[m].a * 100).toFixed(1) : 0);
-  const ptR = months.map(m => m === selYm ? 7 : 3);
-  moMkChart('moTrend', {
-    data: {
-      labels: months.map(moYmLabel),
-      datasets: [
-        { type: 'line', label: '応募', data: apply, borderColor: '#4a90c4', backgroundColor: '#4a90c4', borderWidth: 2.5, tension: 0.3, pointRadius: ptR, yAxisID: 'y', fill: false },
-        { type: 'line', label: '採用', data: hire, borderColor: MINT, backgroundColor: MINT, borderWidth: 2.5, tension: 0.3, pointRadius: ptR, yAxisID: 'y', fill: false },
-        { type: 'line', label: '採用率(%)', data: rate, borderColor: '#d96666', backgroundColor: '#d96666', borderWidth: 2, borderDash: [4, 3], tension: 0.3, pointRadius: ptR, yAxisID: 'yR', fill: false },
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { position: 'bottom', labels: { color: '#5a6862', font: MO_FONT, boxWidth: 12, padding: 10 } }, tooltip: MO_TT },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: '#5a6862', font: MO_FONT } },
-        y: { position: 'left', beginAtZero: true, grid: { color: '#e6ecea' }, ticks: { color: '#5a6862', font: MO_FONT }, title: { display: true, text: '人数', color: '#8a9690', font: { size: 11 } } },
-        yR: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#d96666', font: MO_FONT, callback: v => v + '%' }, title: { display: true, text: '採用率', color: '#d96666', font: { size: 11 } } },
-      }
-    }
-  });
+  moDonut('moChart_age', moCountBy(rows, 'age'), null); moDimTable('moCross_age', 'age', rows, null);
+  moDonut('moChart_job', moCountBy(rows, 'job'), null); moDimTable('moCross_job', 'job', rows, null);
+  moDonut('moChart_emp', moCountBy(rows, 'employment'), EMP_COLORS); moDimTable('moCross_emp', 'employment', rows, EMP_COLORS);
+  moDonut('moChart_media', moCountBy(rows, 'media'), MEDIA_COLORS); moDimTable('moCross_media', 'media', rows, MEDIA_COLORS);
+  moDonut('moChart_after', moCountBy(rows, 'after'), null); moDimTable('moCross_after', 'after', rows, null);
+  moBarH('moChart_company', moCountBy(rows, 'company'), 12); moDimTable('moCross_company', 'company', rows, null, true);
+  renderMoTrend();
 }
 </script>
 
