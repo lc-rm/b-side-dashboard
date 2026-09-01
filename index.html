@@ -2561,7 +2561,8 @@ function copyWasteReport(btn) {
     arr.forEach(a => {
       const digits = (jobNo(a.title).match(/\d+/) || [''])[0];
       const label = digits || a.title;   // 案件No.=数字のみ（英字・No.表記なし）。取れない求人だけタイトルで代替
-      body += `・${label}　¥${a.cost.toLocaleString('ja-JP')}　クリック${a.click.toLocaleString('ja-JP')}　応募開始${a.applyStart}　応募${a.applies}\n`;
+      const startTxt = a.applyStart > 0 ? `　応募開始${a.applyStart}　応募${a.applies}` : `　応募開始0`; // 開始0なら応募0は自明なので省略
+      body += `・${label}　¥${a.cost.toLocaleString('ja-JP')}　クリック${a.click.toLocaleString('ja-JP')}${startTxt}\n`;
     });
   });
   const text = `[info][title]【求人別 速報】要見直し候補（${d.periodLabel}）[/title]抽出条件：コスト${d.costTh.toLocaleString('ja-JP')}円以上で応募0 ／ クリック${d.clickTh}以上で応募開始0\n該当 ${d.list.length}件 ／ 対象消化額 ¥${d.wasteCost.toLocaleString('ja-JP')}\n${body}[/info]`;
