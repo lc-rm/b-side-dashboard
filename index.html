@@ -2550,8 +2550,8 @@ function copyWasteReport(btn) {
     const arr = groups[c]; const gc = arr.reduce((s, x) => s + x.cost, 0);
     body += `\n■ ${c}（${arr.length}件・¥${gc.toLocaleString('ja-JP')}）\n`;
     arr.forEach(a => {
-      const no = jobNo(a.title);
-      const label = no ? ('No.' + no) : a.title;   // 案件No.のみ。取れない求人だけタイトルで代替
+      const digits = (jobNo(a.title).match(/\d+/) || [''])[0];
+      const label = digits || a.title;   // 案件No.=数字のみ（英字・No.表記なし）。取れない求人だけタイトルで代替
       const reason = a._c1 && a._c2 ? '応募0/開始0' : a._c1 ? '応募0' : '開始0';
       body += `・${label}｜¥${a.cost.toLocaleString('ja-JP')}（表示${a.imp.toLocaleString('ja-JP')}/クリック${a.click.toLocaleString('ja-JP')}/応募開始${a.applyStart}/応募${a.applies}・${reason}）\n`;
     });
