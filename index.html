@@ -497,6 +497,10 @@ body.auth-locked .app { display: none; }
       <span class="page-tab-icon">¥</span>
       広告コスト
     </button>
+    <button class="page-tab" data-pagetab="market">
+      <span class="page-tab-icon">⚖</span>
+      市場比較
+    </button>
     <button class="page-tab" data-pagetab="jobs">
       <span class="page-tab-icon">▥</span>
       求人別
@@ -737,6 +741,42 @@ body.auth-locked .app { display: none; }
       </div>
     </div>
   </div><!-- /page-pane adcost -->
+
+  <div class="page-pane" data-pane="market" style="display:none;">
+    <div id="mkEmpty" class="empty" style="display:none;"><span class="icon">○</span>広告データ（data.json）がまだありません<div class="hint">Apps Scriptの自動更新後、または convert.py 実行後に表示されます</div></div>
+    <div id="mkMain">
+      <div class="section">
+        <div class="section-title"><span class="marker"></span>市場平均<span class="ja">Indeed 求人媒体の相場（目安）</span></div>
+        <div class="card">
+          <div class="tbl-scroll"><table class="tbl">
+            <thead><tr><th>区分</th><th class="num">クリック単価(CPC)</th><th class="num">応募率(CVR)</th><th class="num">応募単価(CPA)</th></tr></thead>
+            <tbody>
+              <tr><td>介護（パート中心）</td><td class="num">80〜180円</td><td class="num">3〜8%</td><td class="num">1,000〜6,000円</td></tr>
+              <tr><td>正社員（介護・専門職）</td><td class="num">200〜550円</td><td class="num">1〜3.5%</td><td class="num">6,000〜45,000円</td></tr>
+              <tr><td>人材紹介</td><td colspan="3" style="color:var(--text-faint);">公開の市場平均データが乏しい（参考：人材派遣のCPC 30〜100円）</td></tr>
+              <tr style="border-top:2px solid var(--mint-200);"><td>Indeed全体（参考）</td><td class="num">約152円</td><td class="num">約2.5%</td><td class="num">約7,700円</td></tr>
+            </tbody>
+          </table></div>
+          <div style="margin-top:12px; font-size:11px; color:var(--text-faint); line-height:1.7;">
+            ※この市場平均は <b>「人材紹介・正社員・介護」</b> の求人相場をベースにした<b>目安（推計値）</b>です。代理店等の公開データより算出しており、出典・時期・地域・雇用形態で変動します（Indeed公式の確定値ではありません）。
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title"><span class="marker"></span>ビイスタッフ平均<span class="ja">Indeed実績（選択期間）</span></div>
+        <div class="card"><div class="kpi-grid" id="mkBizKpi"></div></div>
+      </div>
+      <div class="section">
+        <div class="section-title"><span class="marker"></span>比較<span class="ja">ビイスタッフ vs 介護パート相場</span></div>
+        <div class="card">
+          <div class="tbl-scroll"><table class="tbl" id="mkCompareTbl"></table></div>
+          <div style="margin-top:12px; font-size:11px; color:var(--text-faint); line-height:1.7;">
+            ※応募率(CVR)がやや低く出るのは、ビイスタッフは「応募<b>完了</b>」で数えているためです（市場は「応募<b>開始</b>」寄り）。フェアに比べるなら上の「応募開始率」で見てください。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /page-pane market -->
 
   <div class="page-pane" data-pane="jobs" style="display:none;">
     <div id="jbEmpty" class="empty" style="display:none;"><span class="icon">○</span>求人別データ（data.json）がまだありません<div class="hint">Apps Scriptの自動更新後、または convert.py 実行後に表示されます</div></div>
@@ -2228,7 +2268,7 @@ function setupTabs() {
       if (state.pageTab === 'monthly') {
         renderMonthly();
       }
-      if (state.pageTab === 'adcost' || state.pageTab === 'jobs') {
+      if (state.pageTab === 'adcost' || state.pageTab === 'jobs' || state.pageTab === 'market') {
         renderExt();
       }
     });
@@ -2507,6 +2547,44 @@ async function fetchExtData() {
 function renderExt() {
   if (state.pageTab === 'adcost') renderAdCost();
   if (state.pageTab === 'jobs') renderJobs();
+  if (state.pageTab === 'market') renderMarket();
+}
+
+// 市場比較タブ：市場平均（人材紹介・正社員・介護の相場ベース）× ビイスタッフ実績（期間連動）× 比較
+function renderMarket() {
+  const main = document.getElementById('mkMain'), empty = document.getElementById('mkEmpty');
+  if (!main) return;
+  if (!extData || !extData.adCost) { main.style.display = 'none'; if (empty) empty.style.display = ''; return; }
+  main.style.display = ''; if (empty) empty.style.display = 'none';
+  const { f, t } = periodYms();
+  const rows = extData.adCost.filter(a => (!f || a.ym >= f) && (!t || a.ym <= t));
+  const S = k => rows.reduce((s, a) => s + (a[k] || 0), 0);
+  const imp = S('imp'), click = S('click'), ast = S('applyStart'), cv = S('cv'), cost = S('cost');
+  const ctr = imp ? click / imp * 100 : 0, cvr = click ? cv / click * 100 : 0;
+  const startR = click ? ast / click * 100 : 0, cpc = click ? cost / click : 0, cpa = cv ? cost / cv : 0;
+  // ビイスタッフ KPI
+  const kpis = [
+    { cls: '--apply', label: 'クリック率(CTR)', value: ctr.toFixed(1) + '%', unit: '' },
+    { cls: '--contact', label: '応募率(CVR)', value: cvr.toFixed(2) + '%', unit: '' },
+    { cls: '--meeting', label: '応募開始率', value: startR.toFixed(1) + '%', unit: '' },
+    { cls: '--interview', label: 'クリック単価(CPC)', value: fmtYen(Math.round(cpc)), unit: '円' },
+    { cls: '--hire', label: '応募単価(CPA)', value: fmtYen(Math.round(cpa)), unit: '円' },
+  ];
+  document.getElementById('mkBizKpi').innerHTML = kpis.map(i => `<div class="kpi ${i.cls}"><div class="label">${i.label}</div><div class="value">${i.value}${i.unit ? `<span class="unit">${i.unit}</span>` : ''}</div></div>`).join('');
+  // 比較（市場＝介護パート相場）。指標ごとに「高いほど良い／安いほど良い」で判定
+  const chip = (t, c) => `<span style="color:${c}; font-weight:700;">${t}</span>`;
+  const high = (v, lo) => v >= lo ? chip('◎ 良い', 'var(--mint-600)') : chip('△ 低め', '#c75c4a');       // 高いほど良い
+  const low = (v, lo, hi) => v < lo ? chip('◎ 割安', 'var(--mint-600)') : v <= hi ? chip('○ 相場内', '#b07a1e') : chip('△ 割高', '#c75c4a'); // 安いほど良い
+  const cmp = [
+    ['クリック率(CTR)', ctr.toFixed(1) + '%', '約3%', high(ctr, 3)],
+    ['応募率(CVR)', cvr.toFixed(2) + '%', '3〜8%', high(cvr, 3)],
+    ['クリック単価(CPC)', fmtYen(Math.round(cpc)) + '円', '80〜180円', low(cpc, 80, 180)],
+    ['応募単価(CPA)', fmtYen(Math.round(cpa)) + '円', '1,000〜6,000円', low(cpa, 1000, 6000)],
+  ];
+  document.getElementById('mkCompareTbl').innerHTML =
+    '<thead><tr><th>指標</th><th class="num">ビイスタッフ</th><th class="num">市場（介護パート）</th><th>判定</th></tr></thead><tbody>' +
+    cmp.map(r => `<tr><td>${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td>${r[3]}</td></tr>`).join('') +
+    '</tbody>';
 }
 
 function renderAdCost() {
