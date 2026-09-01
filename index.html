@@ -201,6 +201,15 @@ body {
 .col-filter-pop .cf-item:hover { background: var(--mint-50); }
 .col-filter-pop .cf-item.sel { background: var(--mint-100); font-weight: 700; color: var(--mint-700); }
 .col-filter-pop .cf-item .cf-count { font-size: 11px; color: var(--text-faint); font-family: 'Manrope', sans-serif; }
+/* 費用対効果サマリー（KPI風スタット）*/
+.wstat-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: stretch; }
+.wstat { display: inline-flex; flex-direction: column; gap: 5px; padding: 12px 18px; border-radius: 11px; background: var(--bg-tint); border: 1px solid var(--border); min-width: 140px; }
+.wstat .wstat-label { font-size: 10px; color: var(--text-faint); font-weight: 700; letter-spacing: 0.6px; }
+.wstat .wstat-val { font-family: 'Manrope', sans-serif; font-size: 24px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; line-height: 1; }
+.wstat .wstat-val small { font-size: 12px; font-weight: 600; color: var(--text-dim); margin-left: 2px; }
+.wstat.warn { background: #fdf1ee; border-color: #f2d6d0; }
+.wstat.warn .wstat-val { color: #c75c4a; }
+.wstat-cond { margin-top: 9px; font-size: 11px; color: var(--text-faint); }
 
 /* ===== Chart container ===== */
 .chart-box { position: relative; height: 280px; }
@@ -2779,7 +2788,11 @@ function renderJobWaste(periodRows) {
   wReportData = { list: reportList, wasteCost: reportList.reduce((s, a) => s + a.cost, 0), costTh: costTh, clickTh: clickTh, periodLabel: periodLabel };
   const tag = (on, txt, col) => on ? `<span style="display:inline-block; font-size:10px; font-weight:700; color:#fff; background:${col}; border-radius:6px; padding:2px 7px; margin-right:4px; white-space:nowrap;">${txt}</span>` : '';
   sum.innerHTML = flagged.length
-    ? `該当 <b>${list.length}</b> 件${filtered ? `（絞込前 ${base.length}）` : ''} ／ 消化されたムダ額 合計 <b style="color:#c75c4a;">${fmtYen(wasteCost)}円</b>（コスト≥${fmtNum(costTh)}円で応募0、またはクリック≥${fmtNum(clickTh)}で応募開始0）`
+    ? `<div class="wstat-row">
+         <div class="wstat"><div class="wstat-label">要見直し</div><div class="wstat-val">${fmtNum(list.length)}<small>件${filtered ? ` / ${fmtNum(base.length)}` : ''}</small></div></div>
+         <div class="wstat warn"><div class="wstat-label">ムダ消化額（期間合計）</div><div class="wstat-val">¥${fmtNum(wasteCost)}</div></div>
+       </div>
+       <div class="wstat-cond">条件：コスト ≥ ¥${fmtNum(costTh)} で応募0 ／ クリック ≥ ${fmtNum(clickTh)} で応募開始0</div>`
     : `<span style="color:var(--text-faint);">該当する求人はありません（応募0求人がデータに未取込の可能性 → Apps Scriptの更新後に反映されます）。</span>`;
   const arr = key => wSort.key === key ? (wSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="wSetSort('${key}')">${label}${arr(key)}</th>`;
