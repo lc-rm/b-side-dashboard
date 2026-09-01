@@ -2684,8 +2684,9 @@ function renderJobs() {
   if (!extData || !extData.jobs) { main.style.display = 'none'; if (empty) empty.style.display = ''; return; }
   main.style.display = ''; if (empty) empty.style.display = 'none';
   const { f, t } = periodYms();
-  const periodRows = extData.jobs.filter(j => (!f || j.ym >= f) && (!t || j.ym <= t));
-  renderJobWaste(periodRows);
+  const allPeriodRows = extData.jobs.filter(j => (!f || j.ym >= f) && (!t || j.ym <= t));
+  renderJobWaste(allPeriodRows);                                   // 費用対効果=全求人（応募0含む）
+  const periodRows = allPeriodRows.filter(j => (j.applies || 0) > 0); // 求人別 実績/グラフ=応募が発生した求人のみ
   // 区分(CP)の候補（出現件数つき）→ 列ヘッダの絞り込みポップアップで使用
   const cpCount = {};
   periodRows.forEach(j => { const c = j.cp || '(未分類)'; cpCount[c] = (cpCount[c] || 0) + 1; });
