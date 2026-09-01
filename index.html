@@ -144,6 +144,7 @@ body {
 .kpi .value { font-family: 'Manrope', sans-serif; font-size: 30px; font-weight: 700; margin-top: 6px; letter-spacing: -1px; color: var(--text); }
 .kpi .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; margin-left: 3px; }
 .kpi .rate { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.kpi .kpi-mkt { font-size: 11px; color: var(--text-faint); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
 .kpi .rate b { color: var(--accent-color, var(--mint-500)); font-family: 'Manrope', sans-serif; font-weight: 700; }
 
 /* ===== Section ===== */
@@ -747,8 +748,8 @@ body.auth-locked .app { display: none; }
     <div id="mkMain">
       <div class="section">
         <div class="section-title"><span class="marker"></span>市場平均<span class="ja">Indeed 求人媒体の相場（目安）</span></div>
-        <div class="card">
-          <div class="tbl-scroll" style="max-width:900px;"><table class="tbl">
+        <div class="card" style="max-width:960px;">
+          <div class="tbl-scroll"><table class="tbl">
             <thead><tr><th>区分</th><th class="num">クリック単価(CPC)</th><th class="num">応募率(CVR)</th><th class="num">応募単価(CPA)</th></tr></thead>
             <tbody>
               <tr><td>介護（パート中心）</td><td class="num">80〜180円</td><td class="num">3〜8%</td><td class="num">1,000〜6,000円</td></tr>
@@ -764,12 +765,12 @@ body.auth-locked .app { display: none; }
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>ビイスタッフ平均<span class="ja">Indeed実績（選択期間）</span></div>
-        <div class="card"><div class="kpi-grid" id="mkBizKpi"></div></div>
+        <div class="card" style="max-width:960px;"><div class="kpi-grid" id="mkBizKpi"></div></div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>比較<span class="ja">ビイスタッフ vs 介護パート相場</span></div>
-        <div class="card">
-          <div class="tbl-scroll" style="max-width:760px;"><table class="tbl" id="mkCompareTbl"></table></div>
+        <div class="card" style="max-width:960px;">
+          <div class="tbl-scroll"><table class="tbl" id="mkCompareTbl"></table></div>
           <div style="margin-top:12px; font-size:11px; color:var(--text-faint); line-height:1.7;">
             ※応募率(CVR)がやや低く出るのは、ビイスタッフは「応募<b>完了</b>」で数えているためです（市場は「応募<b>開始</b>」寄り）。フェアに比べるなら上の「応募開始率」で見てください。
           </div>
@@ -2562,15 +2563,15 @@ function renderMarket() {
   const imp = S('imp'), click = S('click'), ast = S('applyStart'), cv = S('cv'), cost = S('cost');
   const ctr = imp ? click / imp * 100 : 0, cvr = click ? cv / click * 100 : 0;
   const startR = click ? ast / click * 100 : 0, cpc = click ? cost / click : 0, cpa = cv ? cost / cv : 0;
-  // ビイスタッフ KPI
+  // ビイスタッフ KPI（各カードに市場平均も併記）
   const kpis = [
-    { cls: '--apply', label: 'クリック率(CTR)', value: ctr.toFixed(1) + '%', unit: '' },
-    { cls: '--contact', label: '応募率(CVR)', value: cvr.toFixed(2) + '%', unit: '' },
-    { cls: '--meeting', label: '応募開始率', value: startR.toFixed(1) + '%', unit: '' },
-    { cls: '--interview', label: 'クリック単価(CPC)', value: fmtYen(Math.round(cpc)), unit: '円' },
-    { cls: '--hire', label: '応募単価(CPA)', value: fmtYen(Math.round(cpa)), unit: '円' },
+    { cls: '--apply', label: 'クリック率(CTR)', value: ctr.toFixed(1) + '%', unit: '', mkt: '約3%' },
+    { cls: '--contact', label: '応募率(CVR)', value: cvr.toFixed(2) + '%', unit: '', mkt: '3〜8%' },
+    { cls: '--meeting', label: '応募開始率', value: startR.toFixed(1) + '%', unit: '', mkt: '—' },
+    { cls: '--interview', label: 'クリック単価(CPC)', value: fmtYen(Math.round(cpc)), unit: '円', mkt: '80〜180円' },
+    { cls: '--hire', label: '応募単価(CPA)', value: fmtYen(Math.round(cpa)), unit: '円', mkt: '1,000〜6,000円' },
   ];
-  document.getElementById('mkBizKpi').innerHTML = kpis.map(i => `<div class="kpi ${i.cls}"><div class="label">${i.label}</div><div class="value">${i.value}${i.unit ? `<span class="unit">${i.unit}</span>` : ''}</div></div>`).join('');
+  document.getElementById('mkBizKpi').innerHTML = kpis.map(i => `<div class="kpi ${i.cls}"><div class="label">${i.label}</div><div class="value">${i.value}${i.unit ? `<span class="unit">${i.unit}</span>` : ''}</div><div class="kpi-mkt">市場: ${i.mkt}</div></div>`).join('');
   // 比較（市場＝介護パート相場）。指標ごとに「高いほど良い／安いほど良い」で判定
   const chip = (t, c) => `<span style="color:${c}; font-weight:700;">${t}</span>`;
   const high = (v, lo) => v >= lo ? chip('◎ 良い', 'var(--mint-600)') : chip('△ 低め', '#c75c4a');       // 高いほど良い
