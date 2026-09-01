@@ -2550,10 +2550,10 @@ function copyWasteReport(btn) {
     const arr = groups[c]; const gc = arr.reduce((s, x) => s + x.cost, 0);
     body += `\n■ ${c}（${arr.length}件・¥${gc.toLocaleString('ja-JP')}）\n`;
     arr.forEach(a => {
-      const no = jobNo(a.title) || '—';
-      const nm = a.title.replace(/\/?[A-Za-z]?\d{3,}\s*$/, '').trim();
+      const no = jobNo(a.title);
+      const label = no ? ('No.' + no) : a.title;   // 案件No.のみ。取れない求人だけタイトルで代替
       const reason = a._c1 && a._c2 ? '応募0/開始0' : a._c1 ? '応募0' : '開始0';
-      body += `・No.${no} ${nm}｜¥${a.cost.toLocaleString('ja-JP')}（表示${a.imp.toLocaleString('ja-JP')}/クリック${a.click.toLocaleString('ja-JP')}/応募開始${a.applyStart}/応募${a.applies}・${reason}）\n`;
+      body += `・${label}｜¥${a.cost.toLocaleString('ja-JP')}（表示${a.imp.toLocaleString('ja-JP')}/クリック${a.click.toLocaleString('ja-JP')}/応募開始${a.applyStart}/応募${a.applies}・${reason}）\n`;
     });
   });
   const text = `[info][title]【求人別 速報】要見直し候補（${d.periodLabel}）[/title]予算を使ったのに応募0／クリックはあるのに応募開始0 の求人\n該当 ${d.list.length}件 ／ ムダ額合計 ¥${d.wasteCost.toLocaleString('ja-JP')}\n（条件：コスト≥¥${d.costTh.toLocaleString('ja-JP')}で応募0、またはクリック≥${d.clickTh}で応募開始0）\n${body}[/info]`;
