@@ -789,9 +789,14 @@ body.auth-locked .app { display: none; }
             <div class="filter-group"><label>コスト ≥</label><input id="wasteCost" type="number" min="0" step="500" value="3000" style="width:96px;" oninput="renderJobs()"><span style="font-size:12px; color:var(--text-dim);">円 で 応募0</span></div>
             <div class="filter-group"><label>クリック ≥</label><input id="wasteClick" type="number" min="0" step="5" value="30" style="width:76px;" oninput="renderJobs()"><span style="font-size:12px; color:var(--text-dim);">で 応募開始0</span></div>
           </div>
+          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px;">
+            <button class="btn-primary" id="wCopyBtn" onclick="copyWasteReport(this)" style="font-size:12px; padding:8px 16px;">速報をコピー（チャットワーク用）</button>
+            <label style="font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="wShowKept" onchange="wToggleShowKept(this.checked)" style="accent-color:var(--mint-500); vertical-align:-2px;">保留中も表示</label>
+            <span id="wKeptCount" style="font-size:12px; color:var(--text-faint);"></span>
+          </div>
           <div id="jbWasteSummary" style="margin-bottom:12px; font-size:13px; color:var(--text);"></div>
           <div class="tbl-scroll"><table class="tbl" id="jbWasteTable"></table></div>
-          <div style="margin-top:10px; font-size:11px; color:var(--text-faint); line-height:1.7;">※これは「停止候補の<b>一次抽出</b>」です。応募0でも<b>同エリア・同職種の別求人に応募が流れている</b>場合はムダとは限らないため、最終判断は現場でご確認ください。</div>
+          <div style="margin-top:10px; font-size:11px; color:var(--text-faint); line-height:1.7;">※これは「停止候補の<b>一次抽出</b>」です。応募0でも<b>同エリア・同職種の別求人に応募が流れている</b>場合はムダとは限らないため、最終判断は現場でご確認ください。「保留」＝数値は悪いが残す判断の求人（案件No.単位で<b>全員共有</b>・速報から除外）。</div>
         </div>
       </div>
       <div class="section">
@@ -2513,6 +2518,50 @@ function bootDashboard() {
 // ============== 広告コスト・求人別（data.json / Apps Scriptが自動更新） ==============
 let extData = null;
 const extCharts = {};
+// ===== 費用対効果 速報コピー＋保留（案件No.単位・Firebase全員共有）=====
+let keptSet = new Set();          // 保留中の案件No.（またはNo.無し時はタイトルキー）
+let showKept = false;             // 保留中も表示するか
+let keptTitleByKey = {};          // key→表示タイトル（Firestore書き込み用）
+let wReportData = null;           // コピー用に最後に描画したリストを保持
+function jobNo(title) { const m = String(title || '').match(/([A-Za-z]?\d{3,})\s*$/); return m ? m[1] : ''; }
+function keptKey(title) { return jobNo(title) || ('t:' + title); }
+function jsEsc(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+function wToggleShowKept(v) { showKept = v; renderJobs(); }
+function toggleKeep(key) {
+  const nowKept = keptSet.has(key);
+  if (nowKept) keptSet.delete(key); else keptSet.add(key);
+  if (db) {
+    const id = ('k_' + key).replace(/[^A-Za-z0-9_]/g, '_').slice(0, 140);
+    const ref = db.collection('keptJobs').doc(id);
+    if (nowKept) ref.delete().catch(() => {});
+    else ref.set({ key: key, no: jobNo(keptTitleByKey[key] || '') || key, title: keptTitleByKey[key] || '', at: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {});
+  }
+  renderJobs();
+}
+function copyWasteReport(btn) {
+  if (!wReportData || !wReportData.list.length) { alert('コピー対象の求人がありません（該当なし）。'); return; }
+  const d = wReportData;
+  // 区分（＝Indeedキャンペーン）ごとにグループ化
+  const groups = {};
+  d.list.forEach(a => { const c = a.cp || '(区分なし)'; (groups[c] = groups[c] || []).push(a); });
+  const order = Object.keys(groups).sort((a, b) => groups[b].reduce((s, x) => s + x.cost, 0) - groups[a].reduce((s, x) => s + x.cost, 0));
+  let body = '';
+  order.forEach(c => {
+    const arr = groups[c]; const gc = arr.reduce((s, x) => s + x.cost, 0);
+    body += `\n■ ${c}（${arr.length}件・¥${gc.toLocaleString('ja-JP')}）\n`;
+    arr.forEach(a => {
+      const no = jobNo(a.title) || '—';
+      const nm = a.title.replace(/\/?[A-Za-z]?\d{3,}\s*$/, '').trim();
+      const reason = a._c1 && a._c2 ? '応募0/開始0' : a._c1 ? '応募0' : '開始0';
+      body += `・No.${no} ${nm}｜¥${a.cost.toLocaleString('ja-JP')}（表示${a.imp.toLocaleString('ja-JP')}/クリック${a.click.toLocaleString('ja-JP')}/応募開始${a.applyStart}/応募${a.applies}・${reason}）\n`;
+    });
+  });
+  const text = `[info][title]【求人別 速報】要見直し候補（${d.periodLabel}）[/title]予算を使ったのに応募0／クリックはあるのに応募開始0 の求人\n該当 ${d.list.length}件 ／ ムダ額合計 ¥${d.wasteCost.toLocaleString('ja-JP')}\n（条件：コスト≥¥${d.costTh.toLocaleString('ja-JP')}で応募0、またはクリック≥${d.clickTh}で応募開始0）\n${body}[/info]`;
+  const done = () => { const o = btn.textContent; btn.textContent = 'コピーしました ✓'; btn.disabled = true; setTimeout(() => { btn.textContent = o; btn.disabled = false; }, 1600); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { alert('コピーに失敗しました。手動でコピーしてください。'); } document.body.removeChild(ta); }
 let jbSort = { key: 'applies', dir: 'desc' };  // 求人別テーブルの並び替え
 let jbCpSet = new Set();                         // 求人別 区分(CP)フィルタ（複数選択。空=すべて）
 let jbCpOptions = [];                            // 区分の絞り込み候補（件数つき）
@@ -2703,13 +2752,19 @@ function renderJobWaste(periodRows) {
     const c2 = a.click >= clickTh && a.applyStart === 0;  // クリックあり・応募開始0
     a._flag = c1 || c2; a._c1 = c1; a._c2 = c2; return a;
   }).filter(a => a._flag);
-  // 区分(CP)の候補（該当求人ベース）
-  const cpc = {}; flagged.forEach(a => { const c = a.cp || '(未分類)'; cpc[c] = (cpc[c] || 0) + 1; });
+  // 保留（案件No.単位・全員共有）の判定
+  flagged.forEach(a => { const key = keptKey(a.title); keptTitleByKey[key] = a.title; a._key = key; a._kept = keptSet.has(key); });
+  const keptCount = flagged.filter(a => a._kept).length;
+  const kc = document.getElementById('wKeptCount'); if (kc) kc.textContent = keptCount ? `保留中 ${keptCount}件` : '';
+  // 表示ベース（保留を除外。「保留中も表示」なら含める）
+  const base = showKept ? flagged : flagged.filter(a => !a._kept);
+  // 区分(CP)の候補（表示ベース）
+  const cpc = {}; base.forEach(a => { const c = a.cp || '(未分類)'; cpc[c] = (cpc[c] || 0) + 1; });
   const cps = Object.keys(cpc).sort((a, b) => a.localeCompare(b, 'ja'));
   [...wCpSet].forEach(v => { if (cps.indexOf(v) < 0) wCpSet.delete(v); });
-  wCpAllCount = flagged.length; wCpOptions = cps.map(c => ({ value: c, label: c, count: cpc[c] }));
+  wCpAllCount = base.length; wCpOptions = cps.map(c => ({ value: c, label: c, count: cpc[c] }));
   // 列フィルタ適用（区分・該当理由）
-  let list = flagged;
+  let list = base;
   if (wCpSet.size) list = list.filter(a => wCpSet.has(a.cp || '(未分類)'));
   if (wReasonSet.size) list = list.filter(a => (wReasonSet.has('c1') && a._c1) || (wReasonSet.has('c2') && a._c2));
   // 並び替え
@@ -2717,19 +2772,26 @@ function renderJobWaste(periodRows) {
   list.sort((a, b) => (k === 'title' || k === 'cp') ? dir * String(a[k] || '').localeCompare(String(b[k] || ''), 'ja') : dir * ((a[k] || 0) - (b[k] || 0)));
   const wasteCost = list.reduce((s, a) => s + a.cost, 0);
   const filtered = wCpSet.size || wReasonSet.size;
+  // コピー用（速報は保留を必ず除外）
+  const reportList = list.filter(a => !a._kept);
+  const pf = state.periodFrom, pt = state.periodTo;
+  const periodLabel = (pf && pt) ? (pf.replace('-', '/') + '〜' + pt.replace('-', '/')) : '全期間';
+  wReportData = { list: reportList, wasteCost: reportList.reduce((s, a) => s + a.cost, 0), costTh: costTh, clickTh: clickTh, periodLabel: periodLabel };
   const tag = (on, txt, col) => on ? `<span style="display:inline-block; font-size:10px; font-weight:700; color:#fff; background:${col}; border-radius:6px; padding:2px 7px; margin-right:4px; white-space:nowrap;">${txt}</span>` : '';
   sum.innerHTML = flagged.length
-    ? `該当 <b>${list.length}</b> 件${filtered ? `（絞込前 ${flagged.length}）` : ''} ／ 消化されたムダ額 合計 <b style="color:#c75c4a;">${fmtYen(wasteCost)}円</b>（コスト≥${fmtNum(costTh)}円で応募0、またはクリック≥${fmtNum(clickTh)}で応募開始0）`
+    ? `該当 <b>${list.length}</b> 件${filtered ? `（絞込前 ${base.length}）` : ''} ／ 消化されたムダ額 合計 <b style="color:#c75c4a;">${fmtYen(wasteCost)}円</b>（コスト≥${fmtNum(costTh)}円で応募0、またはクリック≥${fmtNum(clickTh)}で応募開始0）`
     : `<span style="color:var(--text-faint);">該当する求人はありません（応募0求人がデータに未取込の可能性 → Apps Scriptの更新後に反映されます）。</span>`;
   const arr = key => wSort.key === key ? (wSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="wSetSort('${key}')">${label}${arr(key)}</th>`;
   const cpHeader = `<th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="wSetSort('cp')">区分${arr('cp')}<span class="col-filter-btn ${wCpSet.size ? 'on' : ''}" title="区分で絞り込み" onclick="event.stopPropagation(); wOpenCpFilter(this)">▾${wCpSet.size ? '<span class="cf-badge">' + wCpSet.size + '</span>' : ''}</span></th>`;
   const reasonHeader = `<th style="white-space:nowrap;">該当理由<span class="col-filter-btn ${wReasonSet.size ? 'on' : ''}" title="該当理由で絞り込み" onclick="event.stopPropagation(); wOpenReasonFilter(this)">▾${wReasonSet.size ? '<span class="cf-badge">' + wReasonSet.size + '</span>' : ''}</span></th>`;
+  const head = `<thead><tr>${th('title', '求人', '')}${cpHeader}${reasonHeader}${th('imp', '表示', 'num')}${th('click', 'クリック', 'num')}${th('applyStart', '応募開始', 'num')}${th('applies', '応募', 'num')}${th('cost', 'コスト', 'num')}<th>保留</th></tr></thead>`;
+  const keepBtn = a => `<button onclick="toggleKeep('${jsEsc(a._key)}')" style="font-size:10px; padding:3px 10px; border-radius:6px; border:1px solid ${a._kept ? 'var(--mint-400)' : 'var(--border-strong)'}; background:${a._kept ? 'var(--mint-100)' : 'var(--bg-card)'}; color:${a._kept ? 'var(--mint-700)' : 'var(--text-dim)'}; cursor:pointer; white-space:nowrap; font-weight:600;">${a._kept ? '戻す' : '保留'}</button>`;
   tbl.innerHTML = list.length
-    ? `<thead><tr>${th('title', '求人', '')}${cpHeader}${reasonHeader}${th('imp', '表示', 'num')}${th('click', 'クリック', 'num')}${th('applyStart', '応募開始', 'num')}${th('applies', '応募', 'num')}${th('cost', 'コスト', 'num')}</tr></thead><tbody>`
-      + list.map(a => `<tr><td style="white-space:nowrap; max-width:300px; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(a.title)}">${escapeHtml(a.title)}</td><td>${escapeHtml(a.cp || '')}</td><td>${tag(a._c1, '予算消化・応募0', '#c75c4a')}${tag(a._c2, 'クリック有・開始0', '#b07a1e')}</td><td class="num">${fmtNum(a.imp)}</td><td class="num">${fmtNum(a.click)}</td><td class="num">${fmtNum(a.applyStart)}</td><td class="num">${fmtNum(a.applies)}</td><td class="num" style="font-weight:700;">${fmtYen(a.cost)}</td></tr>`).join('')
-      + `<tr style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="num"><b style="color:#c75c4a;">${fmtYen(wasteCost)}</b></td></tr></tbody>`
-    : `<thead><tr>${th('title', '求人', '')}${cpHeader}${reasonHeader}${th('imp', '表示', 'num')}${th('click', 'クリック', 'num')}${th('applyStart', '応募開始', 'num')}${th('applies', '応募', 'num')}${th('cost', 'コスト', 'num')}</tr></thead><tbody><tr><td colspan="8" style="padding:20px; text-align:center; color:var(--text-faint);">${flagged.length ? 'この絞り込みに該当する求人はありません' : '該当なし'}</td></tr></tbody>`;
+    ? head + '<tbody>'
+      + list.map(a => `<tr${a._kept ? ' style="opacity:.5;"' : ''}><td style="white-space:nowrap; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(a.title)}">${escapeHtml(a.title)}</td><td>${escapeHtml(a.cp || '')}</td><td>${tag(a._c1, '予算消化・応募0', '#c75c4a')}${tag(a._c2, 'クリック有・開始0', '#b07a1e')}</td><td class="num">${fmtNum(a.imp)}</td><td class="num">${fmtNum(a.click)}</td><td class="num">${fmtNum(a.applyStart)}</td><td class="num">${fmtNum(a.applies)}</td><td class="num" style="font-weight:700;">${fmtYen(a.cost)}</td><td>${keepBtn(a)}</td></tr>`).join('')
+      + `<tr style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="num"><b style="color:#c75c4a;">${fmtYen(wasteCost)}</b></td><td></td></tr></tbody>`
+    : head + `<tbody><tr><td colspan="9" style="padding:20px; text-align:center; color:var(--text-faint);">${flagged.length ? (keptCount && !showKept ? '該当はすべて保留中です（「保留中も表示」で確認できます）' : 'この絞り込みに該当する求人はありません') : '該当なし'}</td></tr></tbody>`;
 }
 
 function renderJobs() {
@@ -2780,6 +2842,11 @@ function renderJobs() {
 function initDataSync() {
   try { db = firebase.firestore(); } catch(e) { db = null; }
   if (!db) return;
+  // 保留（案件No.単位・全員共有）をリアルタイム同期
+  db.collection('keptJobs').onSnapshot(
+    snap => { keptSet = new Set(); snap.forEach(d => { const k = (d.data() || {}).key; if (k) keptSet.add(k); }); if (state.pageTab === 'jobs') renderJobs(); },
+    err => { console.warn('keptJobs sync:', err.code || err.message); }
+  );
   db.collection('csvFiles').orderBy('uploadedAt', 'asc').onSnapshot(
     snap => { cloudReady = true; rebuildFromSnapshot(snap); },
     err => {
