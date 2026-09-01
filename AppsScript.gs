@@ -94,6 +94,8 @@ function buildData() {
   out.meta.adCostMonths = out.adCost.length;
   out.meta.jobRows = out.jobs.length;
   out.meta.latestAdYm = out.adCost.length ? out.adCost[out.adCost.length - 1].ym : '';
+  var jyms = out.jobs.map(function (j) { return j.ym; }).filter(Boolean);
+  out.meta.latestJobYm = jyms.length ? jyms.reduce(function (a, b) { return a > b ? a : b; }) : '';
   return out;
 }
 
