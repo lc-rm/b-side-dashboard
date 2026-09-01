@@ -84,7 +84,7 @@ function buildData() {
     }
   });
   Object.keys(jmap).forEach(function (k) {
-    var a = jmap[k]; if (a.applies <= 0) return;
+    var a = jmap[k]; if (a.applies <= 0 && a.click <= 0) return;  // 応募あり or クリック(予算消化)ありを残す（費用対効果=応募0のムダ打ち検出用）
     a.cpc = a.click ? Math.round(a.cost / a.click) : 0;
     a.cpa = a.applies ? Math.round(a.cost / a.applies) : 0;
     out.jobs.push(a);

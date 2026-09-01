@@ -144,8 +144,8 @@ for name in job_sheets:
             a["cp"] = cp
 jobs = []
 for a in jobs_map.values():
-    if a["applies"] <= 0:
-        continue  # 応募が発生した求人のみ
+    if a["applies"] <= 0 and a["click"] <= 0:
+        continue  # 応募あり or クリック(予算消化)ありの求人（費用対効果=応募0のムダ打ち検出のため click>0 も残す）
     a["cpc"] = round(a["cost"] / a["click"]) if a["click"] else 0
     a["cpa"] = round(a["cost"] / a["applies"]) if a["applies"] else 0
     jobs.append(a)

@@ -748,8 +748,8 @@ body.auth-locked .app { display: none; }
     <div id="mkMain">
       <div class="section">
         <div class="section-title"><span class="marker"></span>市場平均<span class="ja">Indeed 求人媒体の相場（目安）</span></div>
-        <div class="card" style="max-width:960px;">
-          <div class="tbl-scroll"><table class="tbl">
+        <div class="card">
+          <div class="tbl-scroll" style="max-width:900px; margin:0 auto;"><table class="tbl">
             <thead><tr><th>区分</th><th class="num">クリック単価(CPC)</th><th class="num">応募率(CVR)</th><th class="num">応募単価(CPA)</th></tr></thead>
             <tbody>
               <tr><td>介護（パート中心）</td><td class="num">80〜180円</td><td class="num">3〜8%</td><td class="num">1,000〜6,000円</td></tr>
@@ -765,12 +765,12 @@ body.auth-locked .app { display: none; }
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>ビイスタッフ平均<span class="ja">Indeed実績（選択期間）</span></div>
-        <div class="card" style="max-width:960px;"><div class="kpi-grid" id="mkBizKpi"></div></div>
+        <div class="card"><div class="kpi-grid" id="mkBizKpi" style="max-width:1000px; margin:0 auto;"></div></div>
       </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>比較<span class="ja">ビイスタッフ vs 介護パート相場</span></div>
-        <div class="card" style="max-width:960px;">
-          <div class="tbl-scroll"><table class="tbl" id="mkCompareTbl"></table></div>
+        <div class="card">
+          <div class="tbl-scroll" style="max-width:820px; margin:0 auto;"><table class="tbl" id="mkCompareTbl"></table></div>
           <div style="margin-top:12px; font-size:11px; color:var(--text-faint); line-height:1.7;">
             ※応募率(CVR)がやや低く出るのは、ビイスタッフは「応募<b>完了</b>」で数えているためです（市場は「応募<b>開始</b>」寄り）。フェアに比べるなら上の「応募開始率」で見てください。
           </div>
@@ -782,6 +782,18 @@ body.auth-locked .app { display: none; }
   <div class="page-pane" data-pane="jobs" style="display:none;">
     <div id="jbEmpty" class="empty" style="display:none;"><span class="icon">○</span>求人別データ（data.json）がまだありません<div class="hint">Apps Scriptの自動更新後、または convert.py 実行後に表示されます</div></div>
     <div id="jbMain">
+      <div class="section">
+        <div class="section-title"><span class="marker"></span>費用対効果<span class="ja">予算を使ったのに応募0／クリックはあるのに応募開始0 の求人（選択期間・要見直し候補）</span></div>
+        <div class="card">
+          <div class="filter-bar" style="margin-bottom:14px; gap:28px; flex-wrap:wrap;">
+            <div class="filter-group"><label>コスト ≥</label><input id="wasteCost" type="number" min="0" step="500" value="3000" style="width:96px;" oninput="renderJobs()"><span style="font-size:12px; color:var(--text-dim);">円 で 応募0</span></div>
+            <div class="filter-group"><label>クリック ≥</label><input id="wasteClick" type="number" min="0" step="5" value="30" style="width:76px;" oninput="renderJobs()"><span style="font-size:12px; color:var(--text-dim);">で 応募開始0</span></div>
+          </div>
+          <div id="jbWasteSummary" style="margin-bottom:12px; font-size:13px; color:var(--text);"></div>
+          <div class="tbl-scroll"><table class="tbl" id="jbWasteTable"></table></div>
+          <div style="margin-top:10px; font-size:11px; color:var(--text-faint); line-height:1.7;">※これは「停止候補の<b>一次抽出</b>」です。応募0でも<b>同エリア・同職種の別求人に応募が流れている</b>場合はムダとは限らないため、最終判断は現場でご確認ください。</div>
+        </div>
+      </div>
       <div class="section">
         <div class="section-title"><span class="marker"></span>求人別<span class="ja">応募が発生した求人の実績（選択期間・応募TOP）</span></div>
         <div class="card"><div class="chart-box"><canvas id="jbChart"></canvas></div></div>
@@ -2640,6 +2652,32 @@ function renderAdCost() {
     '<tbody><tr><td style="padding:20px; text-align:center; color:var(--text-faint);">キャンペーン内訳なし</td></tr></tbody>';
 }
 
+// 費用対効果（要見直し）：予算を使ったのに応募0／クリックはあるのに応募開始0 の求人を抽出
+function renderJobWaste(periodRows) {
+  const tbl = document.getElementById('jbWasteTable'), sum = document.getElementById('jbWasteSummary');
+  if (!tbl) return;
+  const costTh = Math.max(0, +(document.getElementById('wasteCost') || {}).value || 0);
+  const clickTh = Math.max(0, +(document.getElementById('wasteClick') || {}).value || 0);
+  // 求人ごとに選択期間で合算
+  const m = {};
+  periodRows.forEach(j => { const a = m[j.title] || (m[j.title] = { title: j.title, cp: j.cp, loc: j.loc, imp: 0, click: 0, applyStart: 0, applies: 0, cost: 0 }); a.imp += j.imp; a.click += j.click; a.applyStart += j.applyStart; a.applies += j.applies; a.cost += j.cost; });
+  const list = Object.values(m).map(a => {
+    const c1 = a.cost >= costTh && a.applies === 0;       // 予算消化・応募0
+    const c2 = a.click >= clickTh && a.applyStart === 0;  // クリックあり・応募開始0
+    a._flag = c1 || c2; a._c1 = c1; a._c2 = c2; return a;
+  }).filter(a => a._flag).sort((x, y) => y.cost - x.cost);
+  const wasteCost = list.reduce((s, a) => s + a.cost, 0);
+  const tag = (on, txt, col) => on ? `<span style="display:inline-block; font-size:10px; font-weight:700; color:#fff; background:${col}; border-radius:6px; padding:2px 7px; margin-right:4px; white-space:nowrap;">${txt}</span>` : '';
+  sum.innerHTML = list.length
+    ? `該当 <b>${list.length}</b> 件 ／ 消化されたムダ額 合計 <b style="color:#c75c4a;">${fmtYen(wasteCost)}円</b>（コスト≥${fmtNum(costTh)}円で応募0、またはクリック≥${fmtNum(clickTh)}で応募開始0）`
+    : `<span style="color:var(--text-faint);">該当する求人はありません（応募0求人がデータに未取込の可能性 → Apps Scriptの更新後に反映されます）。</span>`;
+  tbl.innerHTML = list.length
+    ? `<thead><tr><th>求人</th><th>区分</th><th>該当理由</th><th class="num">表示</th><th class="num">クリック</th><th class="num">応募開始</th><th class="num">応募</th><th class="num">コスト</th></tr></thead><tbody>`
+      + list.map(a => `<tr><td style="white-space:nowrap; max-width:300px; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(a.title)}">${escapeHtml(a.title)}</td><td>${escapeHtml(a.cp || '')}</td><td>${tag(a._c1, '予算消化・応募0', '#c75c4a')}${tag(a._c2, 'クリック有・開始0', '#b07a1e')}</td><td class="num">${fmtNum(a.imp)}</td><td class="num">${fmtNum(a.click)}</td><td class="num">${fmtNum(a.applyStart)}</td><td class="num">${fmtNum(a.applies)}</td><td class="num" style="font-weight:700;">${fmtYen(a.cost)}</td></tr>`).join('')
+      + `<tr style="border-top:2px solid var(--mint-200);"><td><b>合計</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="num"><b style="color:#c75c4a;">${fmtYen(wasteCost)}</b></td></tr></tbody>`
+    : '<tbody><tr><td style="padding:20px; text-align:center; color:var(--text-faint);">該当なし</td></tr></tbody>';
+}
+
 function renderJobs() {
   const main = document.getElementById('jbMain'), empty = document.getElementById('jbEmpty');
   if (!main) return;
@@ -2647,6 +2685,7 @@ function renderJobs() {
   main.style.display = ''; if (empty) empty.style.display = 'none';
   const { f, t } = periodYms();
   const periodRows = extData.jobs.filter(j => (!f || j.ym >= f) && (!t || j.ym <= t));
+  renderJobWaste(periodRows);
   // 区分(CP)の候補（出現件数つき）→ 列ヘッダの絞り込みポップアップで使用
   const cpCount = {};
   periodRows.forEach(j => { const c = j.cp || '(未分類)'; cpCount[c] = (cpCount[c] || 0) + 1; });
