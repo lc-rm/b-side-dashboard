@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ビイサイドプランニング様｜実績分析ダッシュボード</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIyIiBmaWxsPSIjMWVhZjc1Ii8+PHJlY3QgeD0iMjMiIHk9IjUwIiB3aWR0aD0iMTIiIGhlaWdodD0iMjgiIHJ4PSIzIiBmaWxsPSIjZmZmZmZmIi8+PHJlY3QgeD0iNDQiIHk9IjM3IiB3aWR0aD0iMTIiIGhlaWdodD0iNDEiIHJ4PSIzIiBmaWxsPSIjZmZmZmZmIi8+PHJlY3QgeD0iNjUiIHk9IjI0IiB3aWR0aD0iMTIiIGhlaWdodD0iNTQiIHJ4PSIzIiBmaWxsPSIjZmZmZmZmIi8+PC9zdmc+">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -754,12 +755,11 @@ body.auth-locked .app { display: none; }
             <tbody>
               <tr><td>介護（パート中心）</td><td class="num">80〜180円</td><td class="num">3〜8%</td><td class="num">1,000〜6,000円</td></tr>
               <tr><td>正社員（介護・専門職）</td><td class="num">200〜550円</td><td class="num">1〜3.5%</td><td class="num">6,000〜45,000円</td></tr>
-              <tr><td>人材紹介</td><td colspan="3" style="color:var(--text-faint);">公開の市場平均データが乏しい（参考：人材派遣のCPC 30〜100円）</td></tr>
               <tr style="border-top:2px solid var(--mint-200);"><td>Indeed全体（参考）</td><td class="num">約152円</td><td class="num">約2.5%</td><td class="num">約7,700円</td></tr>
             </tbody>
           </table></div>
           <div style="margin-top:12px; font-size:11px; color:var(--text-faint); line-height:1.7;">
-            ※この市場平均は <b>「人材紹介・正社員・介護」</b> の求人相場をベースにした<b>目安（推計値）</b>です。代理店等の公開データより算出しており、出典・時期・地域・雇用形態で変動します（Indeed公式の確定値ではありません）。
+            ※この市場平均は <b>「介護・正社員」</b> の求人相場をベースにした<b>目安（推計値）</b>です。代理店等の公開データより算出しており、出典・時期・地域・雇用形態で変動します（Indeed公式の確定値ではありません）。
           </div>
         </div>
       </div>
@@ -768,7 +768,7 @@ body.auth-locked .app { display: none; }
         <div class="card"><div class="kpi-grid" id="mkBizKpi" style="max-width:1000px; margin:0 auto;"></div></div>
       </div>
       <div class="section">
-        <div class="section-title"><span class="marker"></span>比較<span class="ja">ビイスタッフ vs 介護パート相場</span></div>
+        <div class="section-title"><span class="marker"></span>比較<span class="ja">ビイスタッフ vs 介護・正社員相場</span></div>
         <div class="card">
           <div class="tbl-scroll" style="max-width:820px; margin:0 auto;"><table class="tbl" id="mkCompareTbl"></table></div>
           <div style="margin-top:12px; font-size:11px; color:var(--text-faint); line-height:1.7;">
@@ -2600,7 +2600,7 @@ function renderExt() {
   if (state.pageTab === 'market') renderMarket();
 }
 
-// 市場比較タブ：市場平均（人材紹介・正社員・介護の相場ベース）× ビイスタッフ実績（期間連動）× 比較
+// 市場比較タブ：市場平均（介護・正社員の相場ベース）× ビイスタッフ実績（期間連動）× 比較
 function renderMarket() {
   const main = document.getElementById('mkMain'), empty = document.getElementById('mkEmpty');
   if (!main) return;
@@ -2615,10 +2615,10 @@ function renderMarket() {
   // ビイスタッフ KPI（各カードに市場平均も併記）
   const kpis = [
     { cls: '--apply', label: 'クリック率(CTR)', value: ctr.toFixed(1) + '%', unit: '', mkt: '約3%' },
-    { cls: '--contact', label: '応募率(CVR)', value: cvr.toFixed(2) + '%', unit: '', mkt: '3〜8%' },
+    { cls: '--contact', label: '応募率(CVR)', value: cvr.toFixed(2) + '%', unit: '', mkt: '1〜8%' },
     { cls: '--meeting', label: '応募開始率', value: startR.toFixed(1) + '%', unit: '', mkt: '—' },
-    { cls: '--interview', label: 'クリック単価(CPC)', value: fmtYen(Math.round(cpc)), unit: '円', mkt: '80〜180円' },
-    { cls: '--hire', label: '応募単価(CPA)', value: fmtYen(Math.round(cpa)), unit: '円', mkt: '1,000〜6,000円' },
+    { cls: '--interview', label: 'クリック単価(CPC)', value: fmtYen(Math.round(cpc)), unit: '円', mkt: '80〜550円' },
+    { cls: '--hire', label: '応募単価(CPA)', value: fmtYen(Math.round(cpa)), unit: '円', mkt: '1,000〜45,000円' },
   ];
   document.getElementById('mkBizKpi').innerHTML = kpis.map(i => `<div class="kpi ${i.cls}"><div class="label">${i.label}</div><div class="value">${i.value}${i.unit ? `<span class="unit">${i.unit}</span>` : ''}</div><div class="kpi-mkt">市場: ${i.mkt}</div></div>`).join('');
   // 比較（市場＝介護パート相場）。指標ごとに「高いほど良い／安いほど良い」で判定
@@ -2627,12 +2627,12 @@ function renderMarket() {
   const low = (v, lo, hi) => v < lo ? chip('◎ 割安', 'var(--mint-600)') : v <= hi ? chip('○ 相場内', '#b07a1e') : chip('△ 割高', '#c75c4a'); // 安いほど良い
   const cmp = [
     ['クリック率(CTR)', ctr.toFixed(1) + '%', '約3%', high(ctr, 3)],
-    ['応募率(CVR)', cvr.toFixed(2) + '%', '3〜8%', high(cvr, 3)],
-    ['クリック単価(CPC)', fmtYen(Math.round(cpc)) + '円', '80〜180円', low(cpc, 80, 180)],
-    ['応募単価(CPA)', fmtYen(Math.round(cpa)) + '円', '1,000〜6,000円', low(cpa, 1000, 6000)],
+    ['応募率(CVR)', cvr.toFixed(2) + '%', '1〜8%', high(cvr, 1)],
+    ['クリック単価(CPC)', fmtYen(Math.round(cpc)) + '円', '80〜550円', low(cpc, 80, 550)],
+    ['応募単価(CPA)', fmtYen(Math.round(cpa)) + '円', '1,000〜45,000円', low(cpa, 1000, 45000)],
   ];
   document.getElementById('mkCompareTbl').innerHTML =
-    '<thead><tr><th>指標</th><th class="num">ビイスタッフ</th><th class="num">市場（介護パート）</th><th>判定</th></tr></thead><tbody>' +
+    '<thead><tr><th>指標</th><th class="num">ビイスタッフ</th><th class="num">市場（介護・正社員）</th><th>判定</th></tr></thead><tbody>' +
     cmp.map(r => `<tr><td>${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td>${r[3]}</td></tr>`).join('') +
     '</tbody>';
 }
