@@ -2128,13 +2128,18 @@ function fmtNowJp() {
 }
 function setLastUpdated() { const el = document.getElementById('lastUpdated'); if (el) el.textContent = fmtNowJp(); }
 
+let periodTouched = false; // ユーザーが期間を手動操作したか（false=最新月まで自動追従）
 function renderAll() {
   setLastUpdated();
-  // 全タブ共通の期間（上部バー）を整える
-  const mAll = [...new Set(allData.map(r => r.ym))].sort();
+  // 全タブ共通の期間（上部バー）を整える。月リストは全データ源の和集合
+  const mAll = allMonths();
   if (mAll.length) {
-    if (!state.periodFrom || !mAll.includes(state.periodFrom)) state.periodFrom = mAll[0];
-    if (!state.periodTo || !mAll.includes(state.periodTo)) state.periodTo = mAll[mAll.length - 1];
+    if (!periodTouched) { state.periodFrom = mAll[0]; state.periodTo = mAll[mAll.length - 1]; } // 未操作=全期間（最新月まで）
+    else {
+      if (!state.periodFrom || !mAll.includes(state.periodFrom)) state.periodFrom = mAll[0];
+      if (!state.periodTo || !mAll.includes(state.periodTo)) state.periodTo = mAll[mAll.length - 1];
+    }
+    if (typeof populateMonthSelects === 'function') populateMonthSelects(mAll); // 期間が伸びたらセレクタも更新
     if (typeof updatePeriodUI === 'function') updatePeriodUI();
   }
   const rows = getFiltered();
@@ -2169,10 +2174,13 @@ function renderAll() {
 
 // ============== Filter UI ==============
 function rebuildFilters() {
-  const periods = [...new Set(allData.map(r=>r.ym))].sort();
+  const periods = allMonths();
   // 期間は全タブ共通（上部の共通バー）。初期値=全期間、セレクトは moFrom/moTo を使う
-  if (!state.periodFrom || !periods.includes(state.periodFrom)) state.periodFrom = periods[0];
-  if (!state.periodTo || !periods.includes(state.periodTo)) state.periodTo = periods[periods.length - 1];
+  if (!periodTouched) { if (periods.length) { state.periodFrom = periods[0]; state.periodTo = periods[periods.length - 1]; } }
+  else {
+    if (!state.periodFrom || !periods.includes(state.periodFrom)) state.periodFrom = periods[0];
+    if (!state.periodTo || !periods.includes(state.periodTo)) state.periodTo = periods[periods.length - 1];
+  }
   if (periods.length) { populateMonthSelects(periods); updatePeriodUI(); }
 
   const medias = [...new Set(allData.map(r=>r.media || '(未設定)'))];
@@ -2650,7 +2658,8 @@ async function fetchExtData() {
     const res = await fetch('data.json?cb=' + Date.now(), { cache: 'no-store' });
     if (res.ok) extData = await res.json();
   } catch (e) { extData = null; }
-  renderExt();
+  // data.json読み込みで月の和集合が広がるため、期間バーごと再描画（未操作なら最新月まで自動追従）
+  if (typeof renderAll === 'function') renderAll(); else renderExt();
 }
 function renderExt() {
   if (state.pageTab === 'adcost') renderAdCost();
@@ -2907,7 +2916,13 @@ function rebuildFromSnapshot(snap) {
 }
 
 // ============== 月別タブ（期間選択 + 区分別グラフ＆表 + 推移） ==============
-function monthsSorted() { return [...new Set(allData.map(r => r.ym))].sort(); }
+// 全データ源（媒体別CSV=allData ＋ data.jsonの広告コスト・求人別）の月の和集合
+function allMonths() {
+  const s = new Set(allData.map(r => r.ym));
+  if (extData) { (extData.adCost || []).forEach(a => s.add(a.ym)); (extData.jobs || []).forEach(j => s.add(j.ym)); }
+  return [...s].filter(Boolean).sort();
+}
+function monthsSorted() { return allMonths(); }
 // 期間は state.periodFrom / state.periodTo（全タブ共通）
 
 const monthlyCharts = {};
@@ -2938,14 +2953,15 @@ function setupMonthly() {
   const pre = document.getElementById('moPresets');
   if (pre) pre.addEventListener('click', e => { const p = e.target.dataset.preset; if (p) applyPreset(p); });
   const f = document.getElementById('moFrom'), t = document.getElementById('moTo');
-  if (f) f.addEventListener('change', e => { state.periodFrom = e.target.value; if (state.periodFrom > state.periodTo) state.periodTo = state.periodFrom; renderAll(); });
-  if (t) t.addEventListener('change', e => { state.periodTo = e.target.value; if (state.periodTo < state.periodFrom) state.periodFrom = state.periodTo; renderAll(); });
+  if (f) f.addEventListener('change', e => { periodTouched = true; state.periodFrom = e.target.value; if (state.periodFrom > state.periodTo) state.periodTo = state.periodFrom; renderAll(); });
+  if (t) t.addEventListener('change', e => { periodTouched = true; state.periodTo = e.target.value; if (state.periodTo < state.periodFrom) state.periodFrom = state.periodTo; renderAll(); });
   const sl = document.getElementById('moShiftL'), sr = document.getElementById('moShiftR');
   if (sl) sl.addEventListener('click', () => shiftRange(-1));
   if (sr) sr.addEventListener('click', () => shiftRange(1));
 }
 function applyPreset(p) {
   const ms = monthsSorted(); if (!ms.length) return; const last = ms[ms.length - 1];
+  periodTouched = (p !== 'all'); // 「すべて」は最新月まで自動追従を維持、それ以外は手動固定
   if (p === 'all') { state.periodFrom = ms[0]; state.periodTo = last; }
   else if (p === 'cur') { state.periodFrom = last; state.periodTo = last; }
   else if (p === 'prev') { const i = Math.max(0, ms.length - 2); state.periodFrom = ms[i]; state.periodTo = ms[i]; }
@@ -2955,7 +2971,7 @@ function applyPreset(p) {
 function shiftRange(d) {
   const ms = monthsSorted(); const fi = ms.indexOf(state.periodFrom), ti = ms.indexOf(state.periodTo);
   if (fi < 0 || ti < 0) return; const nfi = fi + d, nti = ti + d;
-  if (nfi < 0 || nti >= ms.length) return; state.periodFrom = ms[nfi]; state.periodTo = ms[nti]; renderAll();
+  if (nfi < 0 || nti >= ms.length) return; periodTouched = true; state.periodFrom = ms[nfi]; state.periodTo = ms[nti]; renderAll();
 }
 function populateMonthSelects(months) {
   ['moFrom', 'moTo'].forEach(id => { const s = document.getElementById(id); if (!s) return; s.innerHTML = months.map(m => `<option value="${m}">${moYmSlash(m)}</option>`).join(''); });
