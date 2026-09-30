@@ -2344,11 +2344,12 @@ function parseCsv(text, fname) {
   if (parsed.errors.length > 0) console.warn('CSV warnings:', parsed.errors);
   const ymFromFname = inferYmFromFilename(fname);
   return parsed.data.map(r => {
-    let ym = ymFromFname;
-    if (!ym && r['応募日①']) {
-      const d = String(r['応募日①']).match(/(\d{4})[-/](\d{1,2})/);
-      if (d) ym = `${d[1]}-${String(d[2]).padStart(2,'0')}`;
-    }
+    // 月の基準は常に「応募日」(中身)。ファイル名の日付はエクスポート日のことがあり信頼しない
+    let ym = '';
+    const appDate = r['応募日①'] || r['応募日'] || r['応募日②'] || '';
+    const d = String(appDate).match(/(\d{4})[-/](\d{1,2})/);
+    if (d) ym = `${d[1]}-${String(d[2]).padStart(2, '0')}`;
+    if (!ym) ym = ymFromFname; // 応募日が空の行のみファイル名で補完
     const ageRaw = parseInt(r['年齢']) || 0;
     return {
       ym: ym || 'unknown',
