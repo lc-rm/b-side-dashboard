@@ -717,6 +717,22 @@ body.auth-locked .app { display: none; }
   </div>
 
   <div class="section">
+    <div class="section-title"><span class="marker"></span>JOB × REVENUE<span class="ja">職種別 採用人数・売上金額（月別）</span></div>
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px; flex-wrap:wrap;">
+        <div style="font-size:11px; color:var(--text-faint); font-weight:600;">表示制御：</div>
+        <button class="chip" id="jrExpandAll" style="cursor:pointer;">全て展開</button>
+        <button class="chip" id="jrCollapseAll" style="cursor:pointer;">全て折りたたみ</button>
+        <div style="flex:1;"></div>
+        <div style="font-size:11px; color:var(--text-faint);">月の ▶ で職種内訳を展開　※採用が発生した職種のみ表示</div>
+      </div>
+      <div class="pivot-wrap">
+        <table class="pivot-tbl" id="jobRevTable"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title"><span class="marker"></span>REVENUE<span class="ja">売上の詳細分析（派遣を除く）</span></div>
     <div class="split-grid">
       <div class="card">
@@ -1904,6 +1920,77 @@ function pivotRow(level, key, label, stats, isOpen, hasChildren, hidden) {
 }
 
 // ============== Revenue Stack Chart (月次×媒体) ==============
+// ===== 職種別 採用人数・売上金額（月別ピボット）=====
+let jrExpanded = {};   // 月キー→展開状態（既定=展開）
+let jrLastRows = [];   // 全展開/折りたたみ用に最後のrowsを保持
+function renderJobRevenue(rows) {
+  const el = document.getElementById('jobRevTable');
+  if (!el) return;
+  jrLastRows = rows;
+  // 月 → 職種：採用のみ集計（採用人数・売上）
+  const tree = {};
+  const grand = { hire: 0, revenue: 0 };
+  rows.forEach(r => {
+    if (!classify(r).hire) return;                 // 採用（面接後＝採用）のみ対象
+    const fee = Number(r.fee || 0);
+    const ym = r.ym || '(未設定)';
+    const job = normalizeJob(r.job) || '(職種未設定)';
+    if (!tree[ym]) tree[ym] = { hire: 0, revenue: 0, jobs: {} };
+    tree[ym].hire++; tree[ym].revenue += fee;
+    if (!tree[ym].jobs[job]) tree[ym].jobs[job] = { hire: 0, revenue: 0 };
+    tree[ym].jobs[job].hire++; tree[ym].jobs[job].revenue += fee;
+    grand.hire++; grand.revenue += fee;
+  });
+  const head = `
+    <thead>
+      <tr>
+        <th>月別 ／ 職種</th>
+        <th class="num">採用人数</th>
+        <th class="num">売上金額</th>
+        <th class="num">1件平均</th>
+      </tr>
+    </thead>`;
+  const ymList = Object.entries(tree).sort((a, b) => a[0].localeCompare(b[0]));
+  if (!ymList.length) {
+    el.innerHTML = head + `<tbody><tr><td colspan="4" style="text-align:center; padding:30px; color:var(--text-faint);">採用データがありません（面接後＝採用の求職者が必要です）</td></tr></tbody>`;
+    return;
+  }
+  const yen = v => v ? fmtYen(v) + '円' : '-';
+  const avg = s => s.hire ? fmtYen(Math.round(s.revenue / s.hire)) + '円' : '-';
+  const row = (level, key, label, s, hasChildren, isOpen, hidden) => {
+    const indent = level === 1 ? 'indent-1' : '';
+    const tg = hasChildren ? `<span class="toggler" data-jr="${key}">${isOpen ? '▼' : '▶'}</span>` : `<span class="toggler leaf">·</span>`;
+    return `<tr class="level-${level} ${hidden ? 'hidden' : ''}">
+      <td class="${indent}">${tg} ${label}</td>
+      <td class="num">${s.hire}</td>
+      <td class="num rev">${yen(s.revenue)}</td>
+      <td class="num">${avg(s)}</td>
+    </tr>`;
+  };
+  let body = '<tbody>';
+  ymList.forEach(([ym, node]) => {
+    const open = jrExpanded[ym] !== undefined ? jrExpanded[ym] : true;
+    body += row(0, ym, moYmSlash(ym), node, true, open, false);
+    const jobList = Object.entries(node.jobs).sort((a, b) => b[1].hire - a[1].hire || b[1].revenue - a[1].revenue);
+    jobList.forEach(([job, s]) => { body += row(1, '', job, s, false, false, !open); });
+  });
+  body += `<tr class="level-0" style="border-top:2px solid var(--border);"><td><span class="toggler leaf">Σ</span> 合計</td><td class="num">${grand.hire}</td><td class="num rev">${yen(grand.revenue)}</td><td class="num">${grand.hire ? fmtYen(Math.round(grand.revenue / grand.hire)) + '円' : '-'}</td></tr>`;
+  body += '</tbody>';
+  el.innerHTML = head + body;
+  el.querySelectorAll('.toggler[data-jr]').forEach(t => {
+    t.addEventListener('click', () => {
+      const k = t.dataset.jr;
+      const cur = jrExpanded[k] !== undefined ? jrExpanded[k] : true;
+      jrExpanded[k] = !cur;
+      renderJobRevenue(jrLastRows);
+    });
+  });
+}
+function jrSetAll(open) {
+  [...new Set(jrLastRows.map(r => r.ym || '(未設定)'))].forEach(ym => { jrExpanded[ym] = open; });
+  renderJobRevenue(jrLastRows);
+}
+
 function renderRevenueStack(rows) {
   const months = [...new Set(allData.map(r => r.ym))].sort();
   // フィルタ後の行のみを対象とする。派遣は紹介手数料発生しないので除外。
@@ -2152,6 +2239,7 @@ function renderAll() {
   const ctRows = getCtFiltered();
   if (state.pageTab === 'crosstab') {
     renderPivot(ctRows);
+    renderJobRevenue(ctRows);
     renderRevenueStack(ctRows);
     renderRevenueByEmp(ctRows);
   } else {
@@ -2294,6 +2382,7 @@ function setupTabs() {
       if (state.pageTab === 'crosstab') {
         const ctRows = getCtFiltered();
         renderPivot(ctRows);
+        renderJobRevenue(ctRows);
         renderRevenueStack(ctRows);
         renderRevenueByEmp(ctRows);
       }
@@ -2336,6 +2425,9 @@ function setupPivotControls() {
     document.getElementById('expandAllBtn').classList.remove('active');
     renderPivot(getCtFiltered());
   });
+  const jrE = document.getElementById('jrExpandAll'), jrC = document.getElementById('jrCollapseAll');
+  if (jrE) jrE.addEventListener('click', () => { jrSetAll(true); jrE.classList.add('active'); jrC && jrC.classList.remove('active'); });
+  if (jrC) jrC.addEventListener('click', () => { jrSetAll(false); jrC.classList.add('active'); jrE && jrE.classList.remove('active'); });
 }
 
 // ============== CSV Upload ==============
