@@ -2916,10 +2916,12 @@ function rebuildFromSnapshot(snap) {
 }
 
 // ============== 月別タブ（期間選択 + 区分別グラフ＆表 + 推移） ==============
-// 全データ源（媒体別CSV=allData ＋ data.jsonの広告コスト・求人別）の月の和集合
+// ym正規化: data.jsonは"YYYYMM"、媒体別CSVは"YYYY-MM"。期間バーは"YYYY-MM"に統一
+function toYmDash(ym) { ym = String(ym || ''); return /^\d{6}$/.test(ym) ? ym.slice(0, 4) + '-' + ym.slice(4, 6) : ym; }
+// 全データ源（媒体別CSV=allData ＋ data.jsonの広告コスト・求人別）の月の和集合（"YYYY-MM"正規化）
 function allMonths() {
-  const s = new Set(allData.map(r => r.ym));
-  if (extData) { (extData.adCost || []).forEach(a => s.add(a.ym)); (extData.jobs || []).forEach(j => s.add(j.ym)); }
+  const s = new Set(allData.map(r => toYmDash(r.ym)));
+  if (extData) { (extData.adCost || []).forEach(a => s.add(toYmDash(a.ym))); (extData.jobs || []).forEach(j => s.add(toYmDash(j.ym))); }
   return [...s].filter(Boolean).sort();
 }
 function monthsSorted() { return allMonths(); }
